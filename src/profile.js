@@ -174,6 +174,6 @@ export function applyTopbar() {
   if (brand && PROFILE.company) {
     const co = document.createElement('span'); co.className = 'co'; co.textContent = PROFILE.company; brand.appendChild(co);
   }
-  document.title = `${PROFILE.company || PROFILE.industry || 'Agents Office'} — Agents Office`;
+  document.title = `${PROFILE.company || PROFILE.industry || 'Codspot World'} — Codspot World`;
 }
 // (13 Sep 2026, AJ: the ANZ / NORTH AMERICA pill is gone — each region is simply its own file.)

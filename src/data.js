@@ -1,4 +1,4 @@
-// Agents Office v2 — roster + design tokens (ported from v1 command-centre.html)
+// Codspot World v2 — roster + design tokens (ported from v1 command-centre.html)
 import { applyData } from './profile.js';
 
 // Nominal.so tokens (locked design language, 30 Jul 2026)
@@ -169,6 +169,34 @@ export const WORKLINES = {
     '▸ meeting scheduled: enzo × tess',
   ],
 };
+
+// THE OWNER'S NAME (24 Sep 2026): the demo text was written for AJ. Served, the page carries the owner's name
+// (office.config → ceo.owner, as window.OWNER); every line that says AJ says it instead. Opened as a file it stays AJ.
+export const OWNER = (typeof window !== 'undefined' && window.OWNER) || 'AJ';
+export const ownerize = s => OWNER === 'AJ' ? s : String(s).replace(/\bAJ\b/g, OWNER); // ponytail: a client really named "AJ" would be renamed too
+for (const o of [WORKLINES, APPROVAL_ASKS]) for (const k of Object.keys(o)) o[k] = o[k].map(ownerize); // canvas text never passes through esc()
+for (const k of Object.keys(APPROVAL_BY_AGENT)) APPROVAL_BY_AGENT[k] = ownerize(APPROVAL_BY_AGENT[k]);
+
+// FACILITIES (owner, 23 Sep 2026): departments the facilities team built (facilities.mjs, <brain>/Codspot World/facilities.json)
+// join the six shipped pods — served in the page as window.FACILITIES, applied by facilities.mjs on the server. Idempotent:
+// a department already here gets its new seats and a re-sized pod. They stand east of the Brain, one pod every 56 units.
+export const BUILTIN_KEYS = [...DEPT_KEYS];
+const NEW_INK = [['#7ED3C4', '#2A9D8F', '#E3F5F1'], ['#F2B880', '#C7782F', '#FBEFE3'], ['#E7A6D0', '#B0558F', '#F9EAF3'], ['#C4DE8A', '#7D9A2E', '#F1F6E2']];
+const LOOKS = [['#1f1f1f', '#F0C9A0'], ['#3d2814', '#E8B98E'], ['#101820', '#C68B59'], ['#6b3410', '#F5D5B0'], ['#141414', '#D9A97E'], ['#552200', '#F0C9A0'], ['#0d0d0d', '#9C6B43']];
+export function addDepartments(list) {
+  (Array.isArray(list) ? list : []).forEach((d, i) => {
+    if (!DEPTS[d.key]) { const [chip, ink, floor] = NEW_INK[i % NEW_INK.length]; DEPTS[d.key] = { name: d.name, short: d.name, chip, ink, floor }; DEPT_KEYS.push(d.key); }
+    for (const s of d.seats) if (!AGENTS.some(a => a.id === s.id)) { const [hair, skin] = LOOKS[AGENTS.length % LOOKS.length]; AGENTS.push({ id: s.id, name: s.name, dept: d.key, lead: !!s.lead, role: s.role, does: s.does, hair, skin }); }
+    const mine = AGENTS.filter(a => a.dept === d.key), cols = mine.length > 8 ? 4 : mine.length > 5 ? 3 : 2;
+    let n = 0; for (const a of mine) a.grid = a.lead ? [(cols - 1) / 2, 0] : [n % cols, 1 + Math.floor(n++ / cols)];
+    const rows = 1 + Math.ceil(n / cols);
+    // desks sit at z = (row-1)*6.4 - 1 (main.js); gz centres this pod's rows on its plinth
+    LAYOUT[d.key] = { pos: [80 + 56 * i, 0], w: (cols - 1) * 8.6 + 11.4, d: (rows - 1) * 6.4 + 12, cols, gz: -((rows - 3) * 6.4 - 2) / 2 };
+    WORKLINES[d.key] = WORKLINES[d.key] || ['▸ picking up the next ticket', '▸ reviewing a change', '▸ writing the status update'];
+    APPROVAL_ASKS[d.key] = APPROVAL_ASKS[d.key] || ['Sign off the next piece of work'];
+  });
+}
+addDepartments(typeof window !== 'undefined' && window.FACILITIES && window.FACILITIES.departments);
 
 // INDUSTRY PROFILE (12 Sep 2026): a per-industry demo file rewrites pods, seats, rows, asks and screen lines in place. No-op without window.PROFILE.
 applyData({ DEPTS, AGENTS, BILLBOARDS, APPROVAL_ASKS, APPROVAL_BY_AGENT, WORKLINES });

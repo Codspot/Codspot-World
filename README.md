@@ -1,6 +1,6 @@
-# Agents Office v3 (Beta)
+# Codspot World v3
 
-![Agents Office — six department pods around the Brain, with the Task Status panel](assets/readme-hero.jpg)
+![Codspot World — six department pods around the Brain, with the Task Status panel](assets/readme-hero.jpg)
 
 A 3D isometric office where AI agents do real work on your own Claude login.
 
@@ -10,13 +10,12 @@ gives it to the right person, they read your notes, use the connectors you have 
 in Claude Code, do the work, and file the result back into your notes. Everything runs on your
 machine.
 
-**Beta.** It works end to end. Expect rough edges and tell us about them in Issues.
 
-**License, in plain English:** Agents Office is a Sahni.ai product. It is free for personal and
+**License, in plain English:** Codspot World is a codspot.ai product. It is free for personal and
 internal use. You may not sell it, resell it, or build a paid product on it. You may not rename it,
-rebrand it, strip the Sahni.ai mark or the notices, present it as your own, or wire it into or bundle
+rebrand it, strip the codspot.ai mark or the notices, present it as your own, or wire it into or bundle
 it with another product, agent system or workforce. (Formal terms: PolyForm Noncommercial 1.0.0 plus
-Sahni.ai's additional terms — see [LICENSE](LICENSE).) The page carries the Sahni.ai mark at the
+codspot.ai's additional terms — see [LICENSE](LICENSE).) The page carries the codspot.ai mark at the
 bottom-left and a licence line along the bottom; leave them in place.
 
 ## Latest updates
@@ -42,7 +41,7 @@ The full list, release by release: [CHANGELOG](CHANGELOG.md).
 ## Install
 
 ```bash
-git clone https://github.com/ajsahni/agents-office.git
+git clone https://github.com/ajcodspot/agents-office.git
 cd agents-office
 ./setup          # checks Node, git and Claude; installs; builds; boots once
 npm start        # → http://localhost:4520
@@ -125,7 +124,7 @@ office and the desks carry the new names. Edit the file by hand if you prefer; t
 ```
 
 Edits to `id`, `department` or `lead` are ignored, and the server says so at start. The same
-file can also sit in your brain as `<brain>/Agents Office/agents.json`; the office reads the
+file can also sit in your brain as `<brain>/Codspot World/agents.json`; the office reads the
 shipped roster, then the brain's, then the local file.
 
 ## Teach the agents how you work
@@ -136,7 +135,7 @@ results are competent and generic. Two ways to fix that, both read before every 
 
 - **A brief** is a few standing sentences on one agent: tone, red lines, who to escalate to.
   It is the `brief` field above.
-- **A skill** is a folder in your brain, `<brain>/Agents Office/skills/<name>/`, with a
+- **A skill** is a folder in your brain, `<brain>/Codspot World/skills/<name>/`, with a
   `SKILL.md` (when it applies, the steps, the shape, the rules) and the template or example
   beside it. Bind it to an agent or a department in its front matter. Same shape as a Claude
   Code skill.
@@ -181,7 +180,7 @@ greeting.
 ### They learn from your corrections
 
 Send a deliverable back with `revise: …` in the agent's chat and the correction is recorded in
-`<brain>/Agents Office/feedback/<agent>.md`. Claude sorts it: a one-off about that task, or a
+`<brain>/Codspot World/feedback/<agent>.md`. Claude sorts it: a one-off about that task, or a
 standing rule ("proposals are always one page") that the agent then applies to every task from
 then on. The file is plain Markdown and it is yours: reword a rule, delete a line to unlearn it,
 move a one-off up to make it a rule. When a rule is really a process, ask Claude Code to fold it
@@ -204,7 +203,7 @@ The task box grows as you type (Shift+Enter for a new line, Enter adds). The ⤢
 - **Tell a department lead in chat.** "every Monday 9am, list the overdue invoices and draft the
   reminders". The lead puts it on the right desk and reads the timetable back on `routines`;
   `pause …`, `resume …`, `run … now` and `delete …` work with a few words from the name.
-- **Ask Claude Code.** Routines live in `<brain>/Agents Office/routines.json`; `CLAUDE.md` tells
+- **Ask Claude Code.** Routines live in `<brain>/Codspot World/routines.json`; `CLAUDE.md` tells
   Claude Code how to write one.
 - **Click a day in the calendar** (P) with REPEAT on: a routine that starts on that date.
 
@@ -332,7 +331,7 @@ you already pay for, and the gauge is there to show it.
 
 Put private overrides in `office.config.local.json` (ignored by git).
 
-Agents write their deliverables to `<brain>/Agents Office/` as dated notes with a link back to
+Agents write their deliverables to `<brain>/Codspot World/` as dated notes with a link back to
 every note they read, so your graph grows as the office works.
 
 ## Keys
@@ -356,7 +355,7 @@ npm run check         # build, offline smoke test in a headless browser, server 
 npm run check:live    # the same, plus real runs through Claude: a task, a routine, an Opus task, a team, a browser task, a chat turn
 ```
 
-Every check prints ✓ or ✗ with the reason. The Beta was built against this loop and it is the
+Every check prints ✓ or ✗ with the reason. The office was built against this loop and it is the
 first thing to run after any change.
 
 ## Where things live
@@ -366,12 +365,12 @@ first thing to run after any change.
 | `src/` | The office: `main.js` scene, `tasks.js` task panel, `brain.js` the Brain, `mcp.js` connectors, `data.js` departments and roster, `v1data.js` agent personalities |
 | `serve.mjs` | The local server: routing, deliverables, chat, the live Brain graph |
 | `mcp.mjs` | Connectors: `claude mcp list` parsed, allow/deny, the tools each agent may call |
-| `roster.mjs` · `office.agents.json` | The 35 agents: names, roles, what they do, their tools, their briefs (`<brain>/Agents Office/agents.json` and `office.agents.local.json` override) |
-| `skills.mjs` · `skills/` | Skills: how a kind of work is done, bound to agents or departments (`<brain>/Agents Office/skills/` is yours) |
-| `learn.mjs` | Corrections from `revise: …` recorded per agent in `<brain>/Agents Office/feedback/`; standing rules go back into the prompt |
+| `roster.mjs` · `office.agents.json` | The 35 agents: names, roles, what they do, their tools, their briefs (`<brain>/Codspot World/agents.json` and `office.agents.local.json` override) |
+| `skills.mjs` · `skills/` | Skills: how a kind of work is done, bound to agents or departments (`<brain>/Codspot World/skills/` is yours) |
+| `learn.mjs` | Corrections from `revise: …` recorded per agent in `<brain>/Codspot World/feedback/`; standing rules go back into the prompt |
 | `onboard.mjs` | The lead's five-question set-up interview; writes briefs and a skill into the brain |
 | `src/models.js` · `usage.mjs` | The three models by name and their CLI flags; the usage gauge (Claude's numbers, the office's own count underneath) |
-| `routines.mjs` · `src/when.js` | Routines: the timetable in `<brain>/Agents Office/routines.json`, plain words → a schedule, the clock and the catch-up (run state in `data/routines.json`) |
+| `routines.mjs` · `src/when.js` | Routines: the timetable in `<brain>/Codspot World/routines.json`, plain words → a schedule, the clock and the catch-up (run state in `data/routines.json`) |
 | `SKILLS.md` | The guide to briefs and skills |
 | `CLAUDE.md` | What Claude Code does when you ask it to change agents, write a skill, put a routine on the timetable, or change connectors in this folder |
 | `graph-build.mjs` | Reads your brain folder and lays out the graph |

@@ -1,6 +1,6 @@
-# Agents Office — for Claude Code
+# Codspot World — for Claude Code
 
-You are in the Agents Office repo. The owner will most often ask you to change **who the agents are and what they do**, to teach an agent **how a kind of work is done** (a brief or a skill), to put something **on the timetable** (a routine), or to change **which connectors the agents may use**. Do that by editing the JSON files and skill folders described below. Do not touch `src/`, `serve.mjs` or the build for those requests.
+You are in the Codspot World repo. The owner will most often ask you to change **who the agents are and what they do**, to teach an agent **how a kind of work is done** (a brief or a skill), to put something **on the timetable** (a routine), or to change **which connectors the agents may use**. Do that by editing the JSON files and skill folders described below. Do not touch `src/`, `serve.mjs` or the build for those requests.
 
 ## Changing the agents
 
@@ -18,19 +18,36 @@ Each agent looks like:
 
 You may change **name, role, does, tools, brief, model**. Keep `name` short and upper case (it is the label on the desk). `does` is what the agent reads about itself before every task, so write it as a job description in one or two sentences. `tools` names the connectors this agent usually reaches for (match the names shown in the top bar, lower case). `brief` is the owner's standing instructions to that one agent, read before every task and chat turn: up to 2,000 characters, a string or a list of lines. Anything longer, or anything with steps and a template, is a skill (next section). `model` is `sonnet`, `opus` or `fable`, or empty for the office default (Sonnet); set it only when the owner names one — a task or a routine can still set its own above it. `effort` is `low`, `medium`, `high`, `xhigh` or `max`, or empty for the office's setting and then the model's own (Opus runs at high); same rule, same precedence.
 
-The roster is read in this order, later wins: `office.agents.json` → `<brain>/Agents Office/agents.json` → `office.agents.local.json`. The brain is the folder named by `brain` in `office.config.json` (or `office.config.local.json`, which wins). If the owner keeps their roster in the brain, write there instead of the local file.
+The roster is read in this order, later wins: `office.agents.json` → `<brain>/Codspot World/agents.json` → `office.agents.local.json`. The brain is the folder named by `brain` in `office.config.json` (or `office.config.local.json`, which wins). If the owner keeps their roster in the brain, write there instead of the local file.
 
-Fixed, and the office ignores edits to them: `id`, `department`, `lead`. There are **six departments and 35 seats** and that is the office. Do not add or remove agents, departments or pods. When the owner wants a new kind of agent, **rename a seat** in the right department. When they want fewer, leave the seat as is; an idle agent costs nothing.
+Fixed, and the office ignores edits to them: `id`, `department`, `lead`. There are **six shipped departments and 35 seats**, plus whatever the facilities team built (next section). Do not add or remove agents, departments or pods. When the owner wants a new kind of agent, **rename a seat** in the right department. When they want fewer, leave the seat as is; an idle agent costs nothing.
 
 Department keys: `emails` (5 seats) · `sales` (6) · `marketing` (7) · `ops` (6) · `fin` (4) · `delivery` (7). Every department has a lead (Emails, Sales, Marketing, Operations, Accounting, Delivery) and the lead stays the lead.
 
 After editing: run `npm run check` (it validates the roster and prints every problem), then tell the owner to restart the office (`npm start`). Names, roles and descriptions update on the next page load.
 
+## Growing the office (facilities)
+
+The owner talks to the CEO; when they ask for more space, a new floor or a new team, the CEO has the facilities team build it (`facilities.mjs`). A built department lives in `<brain>/Codspot World/facilities.json`:
+
+```json
+{ "departments": [{ "key": "dev", "name": "DEVELOPMENT", "floor": "Engineering", "workspace": true,
+    "seats": [{ "id": "emgr", "name": "ENG MANAGER", "role": "Engineering Manager Agent", "does": "…", "lead": true }, …] }] }
+```
+
+Up to 4 built departments, 2–16 seats each, exactly one lead. `floor` names an existing storey from `tower.floors` or adds a new one on top. `workspace: true` gives it the project folders (like `workspace.departments`). The six shipped departments never grow. You may edit this file when the owner asks (add a seat, rename one); the roster file still sets name/role/does/brief on top. After editing: `npm run check`, then restart. The CEO's conversation is kept in `data/ceo.json`; the tasks it hands out run on the server at once and report started / finished / needs your OK into that chat, and its reply streams in as it is written.
+
+**Every seat is the same cubicle** (`makeDesk` in `src/builders.js`): white L-shaped desk, beige fabric partitions on three sides with white caps, a tall white storage tower, a tray rail — open to the camera. New teams get it automatically; never give a team a different desk.
+
+## Running in Docker
+
+`npm run docker:up` builds and starts the office in a container (Dockerfile + docker-compose.yml), `npm run docker:restart` after a change (every start rebuilds the page), `npm run docker:logs`. It mounts `~/Documents` (the repo and project folders, same paths), `~/.claude` and `~/.claude.json` (the owner's login and MCP servers). Claude in Chrome is off inside the container (`AO_BROWSER=0`).
+
 ## Teaching an agent how a task is done (skills)
 
 When the owner says "this is how we do X", "make the agent do it this way", "here is our SOP / template / an example I was happy with", or asks why the deliverables are generic, the answer is a **skill**. A skill is a folder with a `SKILL.md` and the files beside it, the same shape as a Claude Code skill. Full guide: `SKILLS.md`. Read it once before writing your first one.
 
-**Where to write it:** `<brain>/Agents Office/skills/<name>/SKILL.md`, where `<brain>` is the folder from `office.config.local.json` → `office.config.json` (`brain`, default `./brain`). Create the folders if they do not exist. Never write the owner's skills into the repo's `skills/` folder; that holds the shipped examples and `git pull` would fight them. A skill of the same name in the brain replaces a shipped one.
+**Where to write it:** `<brain>/Codspot World/skills/<name>/SKILL.md`, where `<brain>` is the folder from `office.config.local.json` → `office.config.json` (`brain`, default `./brain`). Create the folders if they do not exist. Never write the owner's skills into the repo's `skills/` folder; that holds the shipped examples and `git pull` would fight them. A skill of the same name in the brain replaces a shipped one.
 
 **Decide brief or skill first.** Fits in a paragraph with no steps and no template → a `brief` on the agent. Has steps, a shape, rules, or a document to copy → a skill.
 
@@ -39,7 +56,7 @@ When the owner says "this is how we do X", "make the agent do it this way", "her
 **The folder:**
 
 ```
-<brain>/Agents Office/skills/proposal/
+<brain>/Codspot World/skills/proposal/
   SKILL.md       front matter + instructions (under 6,000 characters)
   template.md    the shape of the finished thing, headings kept
   example.md     one real one the owner was happy with (optional, strip anything private the owner did not hand you)
@@ -78,14 +95,14 @@ Follow `template.md` beside this file, section for section.
 
 Two more things the office writes into the brain on its own. Both are plain files you may edit when the owner asks.
 
-- **Corrections** — `<brain>/Agents Office/feedback/<agent-id>.md`. Every `revise: …` the owner sends lands here, sorted into "## Standing rules" (read by that agent before every task) and "## One-offs". One line each, `- date · rule ← "what the owner said" (task)`. When the owner says "fold the lessons into the skill", "make that a rule", "forget that", or "the agent keeps doing X": read this file, move the durable preferences into the agent's skill (or its `brief` if there is no skill) as short absolute rules, and delete the lines you moved so they are not said twice. Never invent a rule the owner did not give.
-- **The interview** — the department lead's chat runs it when the owner says "set up" (`onboard.mjs`). It writes briefs into `<brain>/Agents Office/agents.json` and one skill into `<brain>/Agents Office/skills/<name>/`. An earlier skill of the same name is kept beside it as `SKILL.md.backup-<time>`; if the owner asks you to tidy up, merge what is worth keeping and delete the backup. `data/interviews.json` holds an interview in progress; delete it if one is stuck.
+- **Corrections** — `<brain>/Codspot World/feedback/<agent-id>.md`. Every `revise: …` the owner sends lands here, sorted into "## Standing rules" (read by that agent before every task) and "## One-offs". One line each, `- date · rule ← "what the owner said" (task)`. When the owner says "fold the lessons into the skill", "make that a rule", "forget that", or "the agent keeps doing X": read this file, move the durable preferences into the agent's skill (or its `brief` if there is no skill) as short absolute rules, and delete the lines you moved so they are not said twice. Never invent a rule the owner did not give.
+- **The interview** — the department lead's chat runs it when the owner says "set up" (`onboard.mjs`). It writes briefs into `<brain>/Codspot World/agents.json` and one skill into `<brain>/Codspot World/skills/<name>/`. An earlier skill of the same name is kept beside it as `SKILL.md.backup-<time>`; if the owner asks you to tidy up, merge what is worth keeping and delete the backup. `data/interviews.json` holds an interview in progress; delete it if one is stuck.
 
 ## Routines: tasks on the office's own clock
 
 When the owner says "every Monday …", "each morning …", "on a schedule", "automatically at …", "make X happen every …", that is a **routine**: a task the office fires by itself at that time and runs without anyone typing. **This release: Emails, Accounting and Sales only** (`emails`, `fin`, `sales`). A routine for any other department is refused by the office; tell the owner it comes in a later release rather than writing one.
 
-**Where:** `<brain>/Agents Office/routines.json` (`<brain>` as above). Create it with `{"routines": []}` if it does not exist. Never write routines anywhere else.
+**Where:** `<brain>/Codspot World/routines.json` (`<brain>` as above). Create it with `{"routines": []}` if it does not exist. Never write routines anywhere else.
 
 ```json
 { "id": "overdue-reminders", "dept": "fin", "agent": "invo",

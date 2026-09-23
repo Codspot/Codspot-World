@@ -1,13 +1,13 @@
-// Agents Office — the agents learn from your corrections (Beta).
+// Codspot World — the agents learn from your corrections.
 // Every time a deliverable is sent back ("revise: …" in the chat), the correction is written to
-//   <brain>/Agents Office/feedback/<agent-id>.md
+//   <brain>/Codspot World/feedback/<agent-id>.md
 // Claude sorts it: a one-off about that task, or a standing rule that should apply every time.
 // Standing rules are read by that agent before every task and chat turn. The file is yours:
 // edit a rule, delete a line to unlearn it, move a line up to "Standing rules" to promote it.
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const dir = brainPath => path.join(brainPath, 'Agents Office', 'feedback');
+export const dir = brainPath => path.join(brainPath, 'Codspot World', 'feedback');
 const file = (brainPath, id) => path.join(dir(brainPath), id + '.md');
 const MAX_RULES = 15; // the most recent standing rules an agent carries into a task
 const HEAD = (a) => `# Corrections for ${a.name} (${a.id})\n\n` +

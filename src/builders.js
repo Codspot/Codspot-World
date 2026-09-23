@@ -1,4 +1,4 @@
-// Agents Office v2 — procedural mesh builders (stylised 3D, Image-1/2 blend on nominal palette)
+// Codspot World v2 — procedural mesh builders (stylised 3D, Image-1/2 blend on nominal palette)
 import * as THREE from 'three';
 
 export const PLINTH_H = 2.6;
@@ -107,11 +107,31 @@ export function makeDeskScreenTexture(chip) {
   return { tex, canvas: c, ctx: x, draw };
 }
 
+// THE CUBICLE (owner, 24 Sep 2026): every seat in every team, shipped or built by facilities, gets the same workstation —
+// a white L-shaped desk, beige fabric partitions on the back and both sides with white caps, a tall white storage tower at
+// the front corner and a tray rail on the back panel. The front stays open to the camera so the person and screen read.
+// Local frame: x across the desk, -z toward the back panel, the chair sits at z 1.75. Footprint 6.2 × 4.4 fits the 8.6 × 6.4 grid.
+const FABRIC = '#CDBFAE';
 export function makeDesk(chip, live) {
   const g = new THREE.Group();
-  const top = rbox(5.2, 2.6, 0.22, '#DCC29A', 0.18); top.position.y = 2.1; g.add(top);
-  const ped1 = rbox(0.9, 2.2, 1.9, WHITE, 0.12); ped1.position.set(-2.0, 0.1, 0); g.add(ped1);
-  const ped2 = rbox(0.9, 2.2, 1.9, WHITE, 0.12); ped2.position.set(2.0, 0.1, 0); g.add(ped2);
+  const add = (m, x, y, z) => { m.position.set(x, y, z); g.add(m); return m; };
+  add(rbox(6.0, 0.18, 3.7, FABRIC, 0.05), 0, 0, -1.55);                        // back partition
+  add(rbox(6.2, 0.28, 0.12, WHITE, 0.05), 0, 3.7, -1.55);                      // its white cap
+  for (const sx of [-1, 1]) {
+    add(rbox(0.18, 4.2, 3.1, FABRIC, 0.05), sx * 3.0, 0, 0.55);                // side partitions, back to the chair's front
+    add(rbox(0.28, 4.3, 0.12, WHITE, 0.05), sx * 3.0, 3.1, 0.55);
+    add(rbox(0.3, 0.3, 3.22, WHITE, 0.06), sx * 3.0, 0, 2.62);                 // white end post
+  }
+  add(rbox(5.6, 0.1, 0.12, '#E9E6E0', 0.03), 0, 3.0, -1.42);                   // tray rail on the back panel
+  add(rbox(0.8, 0.5, 0.9, '#E8B04A', 0.05), 1.2, 2.55, -1.2);                  // a yellow file box
+  add(rbox(0.9, 0.5, 0.5, WHITE, 0.04), 2.2, 2.75, -1.2);                      // a white letter tray
+  const top = add(rbox(5.7, 2.2, 0.16, WHITE, 0.12), 0, 2.1, -0.35);           // the desk
+  add(rbox(1.5, 2.0, 0.16, WHITE, 0.12), 2.1, 2.1, 1.7);                       // its return, the L
+  add(rbox(0.12, 0.12, 2.1, '#D5D5D5', 0.03), 2.75, 0, 2.6);                   // the return's leg
+  add(rbox(1.0, 1.6, 1.95, WHITE, 0.08), -2.3, 0.1, -0.45);                    // drawer pedestal
+  add(rbox(1.2, 1.7, 3.0, WHITE, 0.08), -2.3, 0, 1.75);                        // tall storage tower at the front corner
+  add(rbox(1.25, 0.04, 0.9, '#E4E4E4', 0.02), -2.3, 2.0, 2.62);                // its perforated panel
+  top.name = 'deskTop';
   // monitor — with a live screen (screens.js) it is a wider 16:10 panel so the session reads from the pod view
   const screenSet = live ? { tex: live.tex, canvas: live.canvas, draw: () => {}, live } : makeDeskScreenTexture(chip);
   const [mw, mh] = live ? [3.4, 2.125] : [2.1, 1.3];

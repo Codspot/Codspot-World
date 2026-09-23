@@ -1,4 +1,4 @@
-// Agents Office V3.6 — the usage gauge: what the subscription has used, shown the way Claude Code's
+// Codspot World V3.6 — the usage gauge: what the subscription has used, shown the way Claude Code's
 // own usage screen shows it (session and week, percent and reset time).
 //
 // A3 (AJ, 9 Sep 2026): read the same endpoint Claude Code reads, with the token Claude Code already

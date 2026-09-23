@@ -4,6 +4,6 @@ dist/*
 data/
 office.config.local.json
 office.agents.local.json
-brain/Agents Office/
+brain/Codspot World/
 .DS_Store
 *.backup-*

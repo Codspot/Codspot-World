@@ -1,10 +1,10 @@
-// Agents Office v2 — Three.js isometric office with zoom-driven LOD
+// Codspot World v2 — Three.js isometric office with zoom-driven LOD
 // Far: clean pods + agent counts (Image 1 read). Near: diorama with 3D people + holo screens (Image 2 read).
 import * as THREE from 'three';
-import { TOKENS, DEPTS, DEPT_KEYS, AGENTS, LAYOUT, WORKLINES, APPROVAL_ASKS, APPROVAL_BY_AGENT } from './data.js';
+import { TOKENS, DEPTS, DEPT_KEYS, AGENTS, LAYOUT, WORKLINES, APPROVAL_ASKS, APPROVAL_BY_AGENT, OWNER, ownerize } from './data.js';
 import { hasScreens, makeScreen } from './screens.js'; // live screens (14 Sep): no-op without window.SCREENS
 import { V1, FILE_GEN, STATS, KPIS, P, rnd, ri, person, money } from './v1data.js';
-import { PROFILE, profileRows, profileTickKpi, profileMockup, applyTopbar } from './profile.js';
+import { PROFILE, titleCase, profileRows, profileTickKpi, profileMockup, applyTopbar } from './profile.js';
 import {
   PLINTH_H, mat, rbox, makePlinth, makeFloorTitle, makeDesk, makeChair,
   makePerson, posePerson, poseWork, makePlant, makeServerRack, makeMeetingTable, makeWalkway, makeWarnSprite,
@@ -14,7 +14,9 @@ import { loadConnectors } from './connectors.js';
 import { initTasks } from './tasks.js';
 import { initBrain } from './brain.js';
 import { initHero, HERO } from './hero.js';
-if (HERO) document.body.classList.add('hero'); // the website hero: no Sahni.ai mark or licence line on top of the page that already carries them // sahni.ai/custom hero mode (16 Sep 2026): opt-in via window.HERO, no-op otherwise
+import { initTower } from './tower.js';
+import { makeInterior, ROOM_ROW, ROOM_W } from './interior.js';
+if (HERO) document.body.classList.add('hero'); // the website hero: no codspot.ai mark or licence line on top of the page that already carries them // codspot.ai/custom hero mode (16 Sep 2026): opt-in via window.HERO, no-op otherwise
 let tasks = null; // V3 task boards — initialised after the rail constants exist
 
 /* ---------- renderer / scene / camera ---------- */
@@ -120,6 +122,77 @@ ground.position.y = -7;
 ground.receiveShadow = true;
 scene.add(ground);
 
+/* ---------- the tower: every storey is a kind of work; each floor shows only its own departments ---------- */
+// office.config(.local).json → "tower": { "name": "CODSPOT", "floors": [{ "name": "Business", "depts": ["emails", …] }, …] }, served by /api/health.
+// The Brain lives on G. A department on no floor is shown on G.
+let TOWER = { name: 'CODSPOT', floors: [
+  { name: 'Business', depts: ['brain', 'emails', 'sales', 'ops', 'fin'] },
+  { name: 'Development', depts: ['delivery'] },
+  { name: 'Creators', depts: ['marketing'] },
+] };
+const FL = i => (i ? String(i) : 'G');
+const floorOf = k => { const i = TOWER.floors.findIndex(f => f.depts.includes(k === 'brainCore' ? 'brain' : k)); return i < 0 ? 0 : i; };
+
+let TW = null; // the building is built the first time you step outside
+const tw = () => { if (!TW) { TW = initTower(renderer); buildTower(); TW.resize(innerWidth, innerHeight, tasks ? tasks.panelWidth() + 30 : 430); } return TW; };
+const buildTower = () => TW && TW.build({ name: TOWER.name, floors: TOWER.floors.map(f => ({ ...f, sub: f.depts.filter(k => DEPTS[k]).map(k => k === 'brain' ? 'The Brain' : titleCase(DEPTS[k].name)).join(' · ') })) });
+function buildLift() {
+  const el = document.getElementById('floorCtl');
+  el.innerHTML = `<button data-f="-1" title="${esc(TOWER.name)} — the whole tower (T)">▦</button>` +
+    TOWER.floors.map((f, i) => `<button data-f="${i}" title="${esc(f.name)}">${FL(i)}</button>`).reverse().join('');
+  el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => setFloor(+b.dataset.f)));
+  el.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.f === floor));
+}
+(location.protocol.startsWith('http') ? fetch('/api/health').then(r => r.ok ? r.json() : null) : Promise.resolve(null)).then(h => { // opened as a file: the default floors
+  if (h && h.tower && Array.isArray(h.tower.floors) && h.tower.floors.length)
+    TOWER = { name: h.tower.name || TOWER.name, floors: h.tower.floors.map(f => typeof f === 'string' ? { name: f, depts: [] } : { name: String(f.name || ''), depts: Array.isArray(f.depts) ? f.depts : [], places: Array.isArray(f.places) ? f.places : [], rooms: Array.isArray(f.rooms) ? f.rooms : [] }) };
+  if (h && h.ceo) { // the CEO's name; "only": the owner talks to the CEO and nobody else
+    CEO.name = h.ceo.name || CEO.name; tcWho.querySelector('option[value="ceo"]').textContent = `${CEO.name} · ${h.ceo.title || 'CEO'}`;
+    if (h.ceo.only) { document.body.classList.add('ceo-only'); setPanelWho('ceo'); }
+  }
+}).catch(() => {}).finally(() => { buildTower(); buildLift();
+  if (floor >= 0) { showFloor(floor); if (!focused) { const h = floorHome(floor); flyTo(h.pos, h.zoom, 400); } } // the floor was drawn from the default tower before the served one arrived — redraw and re-aim with the real floors
+  let f = null; try { f = sessionStorage.getItem('ao.built'); sessionStorage.removeItem('ao.built'); } catch {} // the floor facilities just built exists only now
+  if (f !== null && +f >= 0 && +f < TOWER.floors.length) setFloor(+f); });
+
+let floor = 0; // -1 = the tower from outside
+function floorHome(i = floor) { // where the camera rests on a floor: G is the old overview, an upper floor centres on its pods
+  if (i <= 0) return { pos: overviewPos(), zoom: OVERVIEW.zoom };
+  const ks = TOWER.floors[i].depts.filter(k => LAYOUT[k]); if (!ks.length) return { pos: overviewPos(), zoom: OVERVIEW.zoom };
+  const o = overviewPos(), wing = (TOWER.floors[i].places || []).length > 0;
+  const cx = ks.reduce((t, k) => t + LAYOUT[k].pos[0], 0) / ks.length + (wing ? 13 : 0), cz = ks.reduce((t, k) => t + LAYOUT[k].pos[1], 0) / ks.length - ((TOWER.floors[i].rooms || []).length ? ROOM_ROW / 2 : 0);
+  const big = Math.max(...ks.map(k => Math.max(LAYOUT[k].w, LAYOUT[k].d))); // a pod facilities built can be larger than the shipped 30
+  return { pos: [cx + o[0] - OVERVIEW.base[0], 0, cz + o[2] - OVERVIEW.base[2]], zoom: ks.length > 1 ? 1.1 : wing ? 1.25 : 1.6 * Math.min(1, 30 / big) };
+}
+function showFloor(i) { // hide every department that works on another floor, in the scene and in the HUD
+  const here = k => i >= 0 && floorOf(k) === i;
+  scene.traverse(o => { if (o.userData.dept) o.visible = o.userData.part === 'walkway' ? i === 0 : here(o.userData.dept); });
+  for (const k of Object.keys(deptRT)) if (deptRT[k].badge) deptRT[k].badge.classList.toggle('offfloor', !here(k));
+  for (const id of Object.keys(R)) R[id].pill.classList.toggle('offfloor', !here(R[id].a.dept));
+  if (interior) { scene.remove(interior); interior = null; }
+  if (i >= 0) { // the room around this floor's pods
+    const ks = Object.keys(LAYOUT).filter(here); if (!ks.length) return;
+    const b = ks.reduce((b, k) => { const L = LAYOUT[k]; return { x0: Math.min(b.x0, L.pos[0] - L.w / 2), x1: Math.max(b.x1, L.pos[0] + L.w / 2), z0: Math.min(b.z0, L.pos[1] - L.d / 2), z1: Math.max(b.z1, L.pos[1] + L.d / 2) }; }, { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9 });
+    const m = 12, places = TOWER.floors[i].places || [], rooms = TOWER.floors[i].rooms || [];
+    room = { x0: b.x0 - m, x1: b.x1 + m + (places.length ? 26 : 0), z0: b.z0 - m - (rooms.length ? ROOM_ROW : 0), z1: b.z1 + m }; // a floor with places gets a studio wing, one with rooms a row along the back wall
+    room.x1 = Math.max(room.x1, room.x0 + 20 + rooms.length * ROOM_W + 4); // the row fits every room
+    interior = makeInterior(room, `${FL(i)} · ${TOWER.floors[i].name}`, places, rooms);
+    scene.add(interior);
+  }
+}
+let interior = null, room = null;
+function setFloor(i, quiet = false) {
+  if (i === floor && quiet) return;
+  floor = i;
+  try { localStorage.setItem('ao.floor', String(i)); } catch {} // a refresh comes back to where you were
+  hud.style.display = i < 0 ? 'none' : '';
+  if (focused && !quiet) { if (focused === 'brain') focused = null; else exitFocus(false); }
+  showFloor(i);
+  if (TW) TW.hover(null); canvas.style.cursor = '';
+  if (!quiet && i >= 0) { const h = floorHome(i); flyTo(h.pos, h.zoom, 650); }
+  document.querySelectorAll('#floorCtl button').forEach(b => b.classList.toggle('on', +b.dataset.f === i));
+}
+
 /* ---------- build the office ---------- */
 const hud = document.getElementById('hud');
 const clickTargets = [];   // plinth meshes -> dept key
@@ -205,13 +278,13 @@ for (const a of AGENTS) {
   const dRT = deptRT[a.dept];
   const dept = DEPTS[a.dept];
   const L = dRT.L;
-  const cols = COLS[a.dept];
+  const cols = COLS[a.dept] || L.cols; // a department facilities built carries its own columns and row offset
   const gx = (a.grid[0] - (cols - 1) / 2) * 8.6;
-  const gz = (a.grid[1] - 1) * 6.4 - 1;
+  const gz = (a.grid[1] - 1) * 6.4 - 1 + (L.gz || 0);
   const base = new THREE.Vector3(L.pos[0] + gx, 0.12, L.pos[1] + gz);
 
-  // whole station rotated 45° so monitor screens face the camera square-on
-  const ANG = Math.PI / 4;
+  // the station stands square to the pod, one row per grid line
+  const ANG = 0; // cubicles square to the grid (owner, 24 Sep 2026): straight rows, back to back, no two stations overlapping — at 45° the 6.2-wide cubicle crossed into its neighbours
   const rot = (v) => v.applyAxisAngle(new THREE.Vector3(0, 1, 0), ANG);
 
   const station = new THREE.Group();
@@ -248,7 +321,7 @@ for (const a of AGENTS) {
     a, person, warn, pill, seat: person.position.clone(), seatRot: ANG + Math.PI,
     stand: person.position.clone().add(rot(new THREE.Vector3(1.5, 0, 0.15))),
     state: 'working', bob: Math.random() * 10, path: null, pathI: 0, speed: 9.5, ask: null,
-    v1: V1.find(x => x.id === a.id), feed: [],
+    v1: V1.find(x => x.id === a.id) || { role: a.role || '', tagline: a.does || '', greeting: a.does || `I am ${a.name}.`, chips: [] }, feed: [],
     station, desk, screenSet, // hero mode reaches the monitor and the desk through these
   };
 }
@@ -344,9 +417,10 @@ const BB_ROWS = profileRows() || {
   brain: [
     ['NOTES INDEXED', () => brainNotes.toLocaleString('en-NZ')]],
 };
+for (const k of DEPT_KEYS) if (!BB_ROWS[k]) BB_ROWS[k] = [['AT THEIR DESKS', () => AGENTS.filter(a => a.dept === k && R[a.id] && R[a.id].state === 'working').length]]; // built by facilities
 if (PROFILE && !BB_ROWS.brain) BB_ROWS.brain = [['NOTES INDEXED', () => brainNotes.toLocaleString('en-NZ')]];
 for (const k of [...DEPT_KEYS, 'brain']) {
-  const dept = DEPTS[k];
+  const dept = DEPTS[k], L0 = LAYOUT[k];
   const n = AGENTS.filter(a => a.dept === k).length;
   const b = document.createElement('div');
   b.className = 'badge';
@@ -389,10 +463,56 @@ for (const k of [...DEPT_KEYS, 'brain']) {
     fin:       [43.5, 4, 17],      // side RIGHT
     brain:     [-5.5, 3.2, -5.5],  // just above the pod's back corner
   };
-  deptRT[k].badgeAnchor = new THREE.Vector3(...ANCHOR[k]);
+  deptRT[k].badgeAnchor = new THREE.Vector3(...(ANCHOR[k] || [L0.pos[0], 9.6, L0.pos[1] - L0.d / 2 + 5.4]));
   if (k === 'fin') deptRT[k].sideBadge = true;
   if (k === 'ops') { deptRT[k].sideBadge = true; deptRT[k].sideLeft = true; }
 }
+/* ---------- team monitors (owner, 23 Sep 2026): each team's card lives on a screen beside its desks; click the screen to open the card ---------- */
+const monitorTargets = [];
+const monitors = {};
+for (const k of DEPT_KEYS) {
+  const L = LAYOUT[k], dept = DEPTS[k];
+  const c = document.createElement('canvas'); c.width = 640; c.height = 400;
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const g = new THREE.Group();
+  g.position.set(L.pos[0] - L.w / 2 - 2.5, 0, L.pos[1] - L.d / 2 - 2.5); g.rotation.y = Math.PI / 4; // the pod's back corner, facing the camera
+  const foot = rbox(3, 1.6, 0.25, '#2A2F31', 0.2); g.add(foot);
+  const pole = rbox(0.5, 0.5, 4.4, '#2A2F31', 0.1); g.add(pole);
+  const frame = rbox(8.4, 0.5, 5.4, '#1B1F22', 0.2); frame.position.y = 4.2; g.add(frame);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(8, 5), new THREE.MeshBasicMaterial({ map: tex })); screen.position.set(0, 6.9, 0.27); g.add(screen);
+  g.traverse(o => { if (o.isMesh) { o.userData.dept = k; o.userData.monitor = k; o.castShadow = true; monitorTargets.push(o); } });
+  scene.add(g);
+  const draw = () => {
+    const x = c.getContext('2d'), b = deptRT[k].badge, W = c.width, H = c.height;
+    x.fillStyle = '#12171B'; x.fillRect(0, 0, W, H);
+    x.fillStyle = dept.chip; x.fillRect(0, 0, W, 10);
+    x.fillStyle = '#F3EFE6'; x.textBaseline = 'alphabetic';
+    x.font = '600 30px Helvetica, Arial, sans-serif'; x.fillText([...dept.short.toUpperCase()].join(' '), 32, 62);
+    x.fillStyle = '#5BD68A'; x.beginPath(); x.arc(W - 40, 52, 8, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#F3EFE6'; x.font = '400 104px Georgia, serif'; const n = String(AGENTS.filter(a => a.dept === k).length); x.fillText(n, 32, 170);
+    x.font = '500 22px Helvetica, Arial, sans-serif'; x.fillStyle = 'rgba(243,239,230,.6)'; x.fillText('A G E N T S', 44 + x.measureText(n).width * 0 + 70, 168);
+    BB_ROWS[k].slice(0, 2).forEach((row, i) => {
+      const y = 232 + i * 46;
+      x.font = '500 22px Helvetica, Arial, sans-serif'; x.fillStyle = 'rgba(243,239,230,.6)'; x.textAlign = 'left'; x.fillText(row[0], 32, y);
+      x.font = '400 32px Georgia, serif'; x.fillStyle = '#F3EFE6'; x.textAlign = 'right'; x.fillText(String(row[1]()), W - 32, y); x.textAlign = 'left';
+    });
+    x.fillStyle = 'rgba(243,239,230,.15)'; x.fillRect(32, 296, W - 64, 2);
+    const tk = s => (b.querySelector(`[data-tk="${k}-${s}"]`) || {}).textContent || '0';
+    x.font = '500 22px Helvetica, Arial, sans-serif'; x.fillStyle = 'rgba(243,239,230,.6)';
+    [['DOING', tk('doing')], ['NEXT', tk('next')], ['DONE', tk('done')]].forEach(([l, v], i) => {
+      const px = 32 + i * 196; x.fillText(l, px, 340); x.font = '400 30px Georgia, serif'; x.fillStyle = '#F3EFE6'; x.fillText(v, px + x.measureText(l).width + 40, 342); x.font = '500 22px Helvetica, Arial, sans-serif'; x.fillStyle = 'rgba(243,239,230,.6)';
+    });
+    const asks = deptRT[k].apprRow && deptRT[k].apprRow.style.display !== 'none';
+    if (asks) { x.fillStyle = '#E8A33D'; x.fillRect(0, H - 44, W, 44); x.fillStyle = '#12171B'; x.font = '700 22px Helvetica, Arial, sans-serif'; x.fillText('⚠  WAITING ON YOUR APPROVAL', 32, H - 15); }
+    tex.needsUpdate = true;
+    b.classList.toggle('shut', !monitors[k].open && !asks); // the card stays on the screen unless you open it, or it needs you
+  };
+  monitors[k] = { open: false, draw };
+}
+setInterval(() => { for (const k of DEPT_KEYS) monitors[k].draw(); }, 1000);
+setTimeout(() => { for (const k of DEPT_KEYS) monitors[k].draw(); }, 0);
+function toggleMonitor(k) { monitors[k].open = !monitors[k].open; monitors[k].draw(); }
+
 function updateBillboards() {
   for (const k of Object.keys(BB_ROWS)) {
     BB_ROWS[k].forEach((row, i) => {
@@ -443,6 +563,7 @@ let focused = null; // dept key when zoomed into a dept
 addEventListener('wheel', (e) => {
   if (e.target.closest && e.target.closest('#rail')) return; // let the rail scroll
   e.preventDefault();
+  if (floor < 0) { tw().zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1); return; }
   tween = null;
   view.arc = 0;
   const nx = (e.clientX / innerWidth) * 2 - 1, ny = -(e.clientY / innerHeight) * 2 + 1;
@@ -462,10 +583,15 @@ canvas.addEventListener('pointerdown', (e) => {
   drag = { x: e.clientX, y: e.clientY, moved: false };
 });
 addEventListener('pointermove', (e) => {
+  if (floor < 0 && !drag && e.target === canvas) { // light up the storey under the pointer
+    const hit = tw().pick((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+    tw().hover(hit); canvas.style.cursor = hit !== null ? 'pointer' : '';
+  }
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
   if (drag.moved) {
+    if (floor < 0) { tw().orbit(e.clientX - drag.x); drag.x = e.clientX; drag.y = e.clientY; return; } // outside: drag walks round the tower
     tween = null;
     const a = worldAt((drag.x / innerWidth) * 2 - 1, -(drag.y / innerHeight) * 2 + 1);
     const b = worldAt((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
@@ -480,11 +606,14 @@ addEventListener('pointerup', (e) => {
   if (e.target !== canvas) return; // HTML chrome handles its own clicks
   const nx = (e.clientX / innerWidth) * 2 - 1, ny = -(e.clientY / innerHeight) * 2 + 1;
   ray.setFromCamera(new THREE.Vector2(nx, ny), camera);
+  if (floor < 0) { const t = tw().pick(nx, ny); if (t !== null) setFloor(t); return; } // walk into a floor
   const mHits = ray.intersectObjects(mcp.sprites, false);
   if (mHits.length) { // MCP logo tile → pulse + connection tooltip
     mcp.showTip(mHits[0].object, e.clientX, e.clientY, performance.now());
     return;
   }
+  const scr = ray.intersectObjects(monitorTargets, false).find(h => h.object.visible);
+  if (scr) { toggleMonitor(scr.object.userData.monitor); return; } // a team's screen opens (or closes) its card
   const pHits = ray.intersectObjects(personTargets, false);
   if (pHits.length) {
     // clicking an agent opens its rail — a stuck agent opens straight to Chat (v1 rule)
@@ -509,6 +638,8 @@ addEventListener('keydown', (e) => {
   else if (e.key === '-' || e.key === '_') zoomStep(1 / 1.5);
   else if (e.key === '0') zoomOut();
   else if (e.key === 'x' || e.key === 'X') { if (!meeting) planMeeting(performance.now()); }
+  else if (e.key === 't' || e.key === 'T') setFloor(floor < 0 ? 0 : -1); // step outside to the tower, or back into G
+  else if (floor < 0) return; // outside the tower the office hotkeys have nothing to act on
   else if (e.key >= '1' && e.key <= '6') { // jump straight to a department
     const dept = ['marketing', 'emails', 'sales', 'ops', 'fin', 'delivery'][+e.key - 1];
     if (focused !== dept) enterFocus(dept);
@@ -560,6 +691,7 @@ canvas.addEventListener('dblclick', (e) => {
 
 // on-screen zoom controls
 function zoomStep(f) {
+  if (floor < 0) { tw().zoom(f); return; }
   flyTo([view.target.x, 0, view.target.z], clamp(view.zoom * f, 0.72, 5.2), 350);
   if (view.zoom * f < 1.6 && focused) {
     if (focused === 'brain') focused = null; else exitFocus(false);
@@ -572,6 +704,8 @@ document.getElementById('zHome').addEventListener('click', zoomOut);
 
 function zoomToDept(k) { enterFocus(k); }
 function zoomOut() {
+  if (floor < 0) return;
+  if (floor) { if (focused && focused !== 'brain') exitFocus(true); else { focused = null; const h = floorHome(); flyTo(h.pos, h.zoom, 550); } syncOverviewBtn(); return; }
   if (focused && focused !== 'brain') { exitFocus(true); return; }
   focused = null;
   flyTo(overviewPos(), OVERVIEW.zoom, 550);
@@ -585,12 +719,13 @@ function syncOverviewBtn() {
 
 /* ---------- focus rail: dept billboard + activity rows; agent CHAT & ACTIVITY slide-over ---------- */
 const chatHist = {};
+let panelWho = null, tcMsgs = null; // the panel chat (below) — declared here, chatPush runs before it is built
 const rail = document.getElementById('rail');
 const vignette = document.getElementById('vignette');
 const mMsgs = document.getElementById('mMsgs');
 let modalOpen = null, modalTab = 'chat'; // modalOpen = agent id open in the rail slide-over
 // V3.3: the rail docks LEFT for every department — the task panel has the right side
-const RAIL_SIDE = { marketing: 'left', emails: 'left', sales: 'left', ops: 'left', fin: 'left', delivery: 'left' };
+const RAIL_SIDE = Object.fromEntries(DEPT_KEYS.map(k => [k, 'left']));
 const SCREEN_RIGHT = new THREE.Vector3(1, 0, -1).normalize();
 
 function ensureChat(id) {
@@ -603,16 +738,17 @@ function ensureChat(id) {
   if (FILE_GEN[id] && !(tasks && tasks.isLive())) chatHist[id].push({ who: 'file', ...FILE_GEN[id]() }); // demo-only sample file; a live office shows real deliverables
 }
 function chatPush(id, msg) {
-  ensureChat(id);
+  if (id !== 'ceo') ensureChat(id);
   chatHist[id].push(msg);
   if (chatHist[id].length > 80) chatHist[id].splice(2, 1);
   if (modalOpen === id && modalTab === 'chat') renderChat(id);
+  if (panelWho === id && tcMsgs) renderChat(id, tcMsgs);
 }
-function renderChat(id) {
+function renderChat(id, mMsgs = document.getElementById('mMsgs')) {
   const r = R[id];
   mMsgs.innerHTML = chatHist[id].map((m, i) => {
     if (m.who === 'agent') return `<div class="m-agent">${esc(m.text)}</div>`;
-    if (m.who === 'user') return `<div class="m-user">${esc(m.text)}</div>`;
+    if (m.who === 'user') return `<div class="m-user">${esc(m.text)}${m.files && m.files.length ? `<div class="m-files">${m.files.map(n => '📎 ' + esc(n)).join('<br>')}</div>` : ''}</div>`;
     if (m.who === 'work') return `<div class="m-work"><span class="wi">${m.i || '▸'}</span>${esc(m.text)}</div>`;
     if (m.who === 'file') return `
       <div class="m-file" data-i="${i}">
@@ -626,7 +762,7 @@ function renderChat(id) {
         ${m.mock ? `<div class="a-mock">${m.mock}</div>` : ''}
         ${m.pending
           ? '<div class="a-btns"><button class="a-yes">APPROVE</button><button class="a-no">REJECT</button></div>'
-          : `<div class="a-done">${m.approved ? '✓ Approved' : '✗ Rejected'} by AJ</div>`}
+          : `<div class="a-done">${m.approved ? '✓ Approved' : '✗ Rejected'} by ${esc(OWNER)}</div>`}
       </div>`;
     return '';
   }).join('');
@@ -666,6 +802,7 @@ function focusTarget(k, atPos) {
   return { pos: [base[0] + SCREEN_RIGHT.x * dir, 0, base[2] + SCREEN_RIGHT.z * dir], zoom };
 }
 function enterFocus(k, pendingAgentId) {
+  setFloor(floorOf(k), true); // a department on another floor takes the lift first
   if (k === 'brain') { // the Brain keeps its plain fly-in (AJ's call)
     focused = 'brain';
     if (tasks) tasks.onFocusChange('brain');
@@ -693,7 +830,7 @@ function enterFocus(k, pendingAgentId) {
   buildDeptRail(k);
   rail.className = RAIL_SIDE[k];
   rail.style.display = 'block';
-  document.body.classList.toggle('railLeft', RAIL_SIDE[k] === 'left'); // the Sahni.ai mark steps right of a docked-left rail
+  document.body.classList.toggle('railLeft', RAIL_SIDE[k] === 'left'); // the codspot.ai mark steps right of a docked-left rail
   // V3.4: the rail IS the chat — it opens on the department lead (or first agent) at once
   // (after the className reset above, which would otherwise drop the agentOpen state)
   const first = pendingAgentId || (AGENTS.find(x => x.dept === k && x.lead) || AGENTS.find(x => x.dept === k)).id;
@@ -719,7 +856,7 @@ function exitFocus(flyOut = true) {
   setTimeout(() => { if (!focused) rail.style.display = 'none'; }, 650);
   document.getElementById('overviewBtn').classList.remove('right');
   if (k !== 'brain' && deptRT[k] && deptRT[k].badge) deptRT[k].badge.style.display = '';
-  if (flyOut) flyTo(overviewPos(), OVERVIEW.zoom, 700);
+  if (flyOut) { const h = floorHome(); flyTo(h.pos, h.zoom, 700); }
   syncOverviewBtn();
 }
 function buildDeptRail(k) {
@@ -822,12 +959,11 @@ function setTab(tab) {
 }
 document.querySelectorAll('#rail .mtabs button').forEach(b =>
   b.addEventListener('click', () => setTab(b.dataset.tab)));
-function sendChat(text) {
-  const id = modalOpen;
+function sendChat(text, id = modalOpen, box = document.getElementById('mIn')) {
   if (!id || !text.trim()) return;
   const r = R[id];
   chatPush(id, { who: 'user', text });
-  document.getElementById('mIn').value = '';
+  box.value = '';
   const low = text.toLowerCase();
   setTimeout(() => {
     if (tasks && tasks.pendingReject(id)) { tasks.rejectLive(id, text); return; } // V3.5: the line after REJECT is the note the agent reworks with
@@ -859,13 +995,101 @@ function sendChat(text) {
     chatPush(id, { who: 'agent', text: reply });
   }, 450 + Math.random() * 500);
 }
+/* ---------- the panel chat (owner, 23 Sep 2026): the right panel is a conversation — pick who, type, send ---------- */
+tcMsgs = document.querySelector('.tc-msgs'); const tcWho = document.querySelector('.tc-who'), tcIn = document.querySelector('.tc-in');
+tcWho.innerHTML = DEPT_KEYS.map(k => `<optgroup label="${esc(DEPTS[k].name)}">${AGENTS.filter(a => a.dept === k).sort((a, b) => (b.lead ? 1 : 0) - (a.lead ? 1 : 0))
+  .map(a => `<option value="${a.id}">${esc(a.name)}${a.lead ? ' ★' : ''}</option>`).join('')}</optgroup>`).join('');
+// the CEO sits at the top: it talks with you and hands the work to the departments (server: /api/ceo)
+const CEO = { name: TOWER.name, title: 'CEO' };
+tcWho.insertAdjacentHTML('afterbegin', `<option value="ceo">${esc(CEO.name)} · CEO</option>`);
+function setPanelWho(id) {
+  if (id !== 'ceo' && !R[id]) return;
+  panelWho = id; tcWho.value = id;
+  if (id === 'ceo' && !chatHist.ceo) chatHist.ceo = [{ who: 'agent', text: `${CEO.name} here. Tell me what you need and I'll put the right team on it.` }];
+  else ensureChat(id);
+  renderChat(id, tcMsgs);
+  try { localStorage.setItem('ao.chatWho', id); } catch {}
+}
+tcWho.addEventListener('change', () => setPanelWho(tcWho.value));
+{ let w = null; try { w = localStorage.getItem('ao.chatWho'); } catch {} setPanelWho(w === 'ceo' || R[w] ? w : 'ceo'); }
+// the CEO conversation lives on the server (data/ceo.json): a refresh keeps it, and the work it handed out reports into it as it goes
+let ceoBusy = false;
+const ceoSync = () => fetch('/api/ceo').then(r => r.ok ? r.json() : []).then(l => {
+  if (ceoBusy || !Array.isArray(l) || !l.length || l.length === chatHist.ceo.length - 1) return;
+  chatHist.ceo = [{ who: 'agent', text: `${CEO.name} here. Tell me what you need and I'll put the right team on it.` }, ...l];
+  if (panelWho === 'ceo') renderChat('ceo', tcMsgs);
+}).catch(() => {});
+if (location.protocol.startsWith('http')) { ceoSync(); setInterval(ceoSync, 3000); }
+function sendCeo(text) {
+  if (!text.trim() && !tcFiles.length) return;
+  const names = tcFiles.map(f => f.name);
+  chatPush('ceo', { who: 'user', text: text.trim() || 'Here are some files for reference.', files: names }); tcIn.value = '';
+  if (!(tasks && tasks.isLive())) { chatPush('ceo', { who: 'agent', text: 'Start the office server (npm start) and I can hand this to the team.' }); return; }
+  const wait = { who: 'work', i: '…', text: `${CEO.name} is thinking` }; chatPush('ceo', wait);
+  const said = { who: 'agent', text: '' }; ceoBusy = true;
+  const show = () => { if (panelWho === 'ceo') renderChat('ceo', tcMsgs); };
+  uploadFiles().then(files => fetch('/api/ceo', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text, stream: true, files }) })) // the server keeps the history; the reply streams in as {delta} lines
+    .then(async res => {
+      if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+      const rd = res.body.getReader(), dec = new TextDecoder(); let buf = '', end = null;
+      for (;;) {
+        const { value, done } = await rd.read(); if (done) break;
+        buf += dec.decode(value, { stream: true }); let i;
+        while ((i = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, i); buf = buf.slice(i + 1); if (!line.trim()) continue;
+          const m = JSON.parse(line);
+          if (m.done) end = m;
+          else if (m.delta) { const k = chatHist.ceo.indexOf(wait); if (k >= 0) chatHist.ceo.splice(k, 1, said); said.text += m.delta; show(); }
+        }
+      }
+      return end || JSON.parse(buf);
+    })
+    .then(j => {
+      const k = chatHist.ceo.indexOf(wait); if (k >= 0) chatHist.ceo.splice(k, 1);
+      if (!chatHist.ceo.includes(said)) chatHist.ceo.push(said);
+      said.text = j.reply || said.text || '…'; show();
+      for (const t of j.tasks || []) chatPush('ceo', { who: 'work', i: '📋', text: `${(t.chain || [t.agent]).join(' → ')}: ${t.title}` });
+      for (const t of j.steps || []) chatPush('ceo', { who: 'work', i: '🏗', text: t }); // what facilities did, desk by desk
+      if (j.built) { // facilities built a floor: reload into it (the office is drawn once, at load)
+        chatPush('ceo', { who: 'work', i: '🏗', text: `${j.built.chain.join(' → ')} · opening the floor…` });
+        try { sessionStorage.setItem('ao.built', String(j.built.floorIndex)); } catch {}
+        setTimeout(() => location.reload(), 2500);
+      }
+      if (j.tasks && j.tasks.length && tasks.refresh) tasks.refresh(); // the cards land on the desks at once
+    })
+    .finally(() => { ceoBusy = false; })
+    .catch(e => { const k = chatHist.ceo.indexOf(wait); if (k >= 0) chatHist.ceo.splice(k, 1); chatPush('ceo', { who: 'agent', text: `I couldn't reach Claude (${e.message}).` }); });
+}
+// attachments (owner, 24 Sep 2026): paste, drop or 📎 files into the CEO chat — they upload to data/uploads, go with the message
+// and with every task the CEO hands out, so the team works from what you showed it
+const tcFiles = [], tcFilesEl = document.querySelector('.tc-files'), tcFileIn = document.querySelector('.tc-file'), tcPanel = document.querySelector('.tp-chat');
+const drawFiles = () => { tcFilesEl.innerHTML = tcFiles.map((f, i) => `<span class="tc-f">📎 ${esc(f.name)}<b data-i="${i}" title="remove">×</b></span>`).join(''); };
+const addFiles = list => { for (const f of list) { if (f.size > 20e6) { chatPush('ceo', { who: 'work', i: '⚠', text: `${f.name} is over 20 MB — not attached` }); continue; } if (tcFiles.length < 10) tcFiles.push(f); } drawFiles(); };
+tcFilesEl.addEventListener('click', e => { const i = e.target.dataset.i; if (i !== undefined) { tcFiles.splice(+i, 1); drawFiles(); } });
+document.querySelector('.tc-clip').addEventListener('click', () => tcFileIn.click());
+tcFileIn.addEventListener('change', () => { addFiles(tcFileIn.files); tcFileIn.value = ''; });
+tcIn.addEventListener('paste', e => { // a screenshot on the clipboard arrives as "image.png": give it a name you can tell apart
+  const fs = [...((e.clipboardData && e.clipboardData.files) || [])]; if (!fs.length) return;
+  e.preventDefault(); addFiles(fs.map((f, i) => /^image\.\w+$/.test(f.name) ? new File([f], `screenshot-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}${i ? '-' + i : ''}.${f.name.split('.').pop()}`, { type: f.type }) : f));
+});
+tcPanel.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); tcPanel.classList.add('drop'); } });
+tcPanel.addEventListener('dragleave', e => { if (!tcPanel.contains(e.relatedTarget)) tcPanel.classList.remove('drop'); });
+tcPanel.addEventListener('drop', e => { e.preventDefault(); tcPanel.classList.remove('drop'); addFiles(e.dataTransfer.files); });
+const uploadFiles = () => { const list = tcFiles.splice(0); drawFiles();
+  return Promise.all(list.map(f => fetch('/api/uploads?name=' + encodeURIComponent(f.name), { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream' }, body: f })
+    .then(async r => r.ok ? r.json() : Promise.reject(new Error(`${f.name}: ${(await r.json().catch(() => ({}))).error || r.statusText}`))))); };
+const tcSend = () => panelWho === 'ceo' ? sendCeo(tcIn.value) : sendChat(tcIn.value, panelWho, tcIn);
+document.querySelector('.tc-send').addEventListener('click', tcSend);
+tcIn.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); tcSend(); } e.stopPropagation(); });
+
 document.getElementById('mSend').addEventListener('click', () =>
   sendChat(document.getElementById('mIn').value));
 document.getElementById('mIn').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') sendChat(e.target.value);
   e.stopPropagation();
 });
-function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function esc(s) { return ownerize(String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } // every chat, feed and task line is shown through here: AJ becomes the owner
 function ago(ts) {
   const m = Math.round((Date.now() - ts) / 60000);
   return m < 1 ? 'now' : m < 60 ? m + 'm ago' : Math.round(m / 60) + 'h ago';
@@ -885,7 +1109,7 @@ function mockupFor(id) {
       <div class="d-line"><span>Scope</span><b>matches the brief ✓</b></div>
       <div class="d-p">Hours and scope check out — only the rate is off, and there's no signed variation covering it. Recommend holding payment and querying the rate before it's paid.</div></div>`;
     case 'piper': return `<div class="mk mk-doc">
-      <div class="d-brand">AGENTS OFFICE — PROPOSAL</div>
+      <div class="d-brand">Codspot World — PROPOSAL</div>
       <div class="d-title">Ridgeline Property Group</div>
       <div class="d-line"><span>Seats</span><b>12</b></div>
       <div class="d-line"><span>Plan</span><b>Growth</b></div>
@@ -904,7 +1128,7 @@ function mockupFor(id) {
       <div class="ph-sub">connect rates nearly double 10:00–11:30am — across 40,000 dials</div>
       <div class="ph-ui"><span>♥ 2.4k</span><span>💬 118</span><span>↗ share</span></div></div>`;
     case 'ada': return `<div class="mk mk-ad">
-      <div class="ad-head"><div class="ad-av"></div><div><div class="ad-who">sahni.ai</div><div class="ad-sp">Sponsored</div></div></div>
+      <div class="ad-head"><div class="ad-av"></div><div><div class="ad-who">codspot.ai</div><div class="ad-sp">Sponsored</div></div></div>
       <div class="ad-text">Cold call anxiety? Your first 5 dials decide your whole day…</div>
       <div class="ad-media" style="background:linear-gradient(135deg, ${chip}55, ${chip}22)">“the 10am rule — call when they answer”</div>
       <div class="ad-foot"><span class="ad-hl">Start your free trial</span><span class="ad-cta">SIGN UP</span></div>
@@ -1370,7 +1594,7 @@ function applyRoster(agents) {
 tasks = initTasks({
   hud, R, deptRT, RAIL_SIDE, spawnEmote, chatPush, chatHist, feedPush, zoomToApproval, enterFocus, openAgent, esc,
   brainWrite: (id, title) => brain.write(id, title), brain,
-  onLive: (h) => { document.querySelector('#topbar .brand .ver').textContent = 'BETA'; document.title = `${h.name} — Agents Office`; brain.setOwner(h.name); brain.setQuiet(true); applyRoster(h.agents); },
+  onLive: (h) => { document.querySelector('#topbar .brand .ver').textContent = 'V3'; document.title = `${h.name} — Codspot World`; brain.setOwner(h.name); brain.setQuiet(true); applyRoster(h.agents); },
   onTools: (agentId, keys) => mcp.onToolsUsed(agentId, keys),
   requestApproval, setStuck: setStuckLive,
   onUsage: (u) => { if (mcp && mcp.setUsage) mcp.setUsage(u); }, // V3.6: the plan's gauge in the top bar
@@ -1385,6 +1609,7 @@ if (HERO && HERO.target) { view.target.set(...HERO.target); view.zoom = HERO.zoo
 /* ---------- boot ---------- */
 function resize() {
   renderer.setSize(innerWidth, innerHeight);
+  if (TW) TW.resize(innerWidth, innerHeight, tasks ? tasks.panelWidth() + 30 : 430);
   applyCamera();
 }
 addEventListener('resize', resize);
@@ -1396,6 +1621,10 @@ resize();
   if (h.get('zoom')) view.zoom = parseFloat(h.get('zoom')) || 1;
   if (h.get('appr')) requestApproval(h.get('appr') === '1' ? 'apay' : h.get('appr'));
   if (h.get('view') && LAYOUT[h.get('view')]) enterFocus(h.get('view'));
+  else if (!HERO && !h.get('zoom') && !new URLSearchParams(location.search).get('s')) { // back where you were last (the building on a first visit); ?s=… or #view= opens straight into the office
+    let f = -1; try { const v = localStorage.getItem('ao.floor'); if (v !== null && !isNaN(+v)) f = +v; } catch {}
+    setFloor(f >= -1 && f < TOWER.floors.length ? f : -1);
+  }
   if (h.get('cam')) setCam(h.get('cam') === '1');
   if (h.get('dark') === '1' || document.body.classList.contains('dark')) setDark(true);
   // typing #dark=1 into an OPEN tab is a same-document hash change (no reload) — react to it live
@@ -1408,7 +1637,7 @@ resize();
 }
 window.CC = { hero, flyTo, zoomToDept, zoomOut, zoomToApproval, requestApproval, openAgent, view, applyCamera, R, emotes,
   setCam, setDark, brain, connectorReveal: () => mcp.startReveal(performance.now()),
-  toggleBoard: () => tasks.toggle(), addTask: (agentId, title) => tasks.addTask(agentId, title), tasks, routines: () => tasks.routines };
+  setFloor, toggleBoard: () => tasks.toggle(), addTask: (agentId, title) => tasks.addTask(agentId, title), tasks, routines: () => tasks.routines };
 
 let last = performance.now();
 function loop(now) {
@@ -1422,7 +1651,8 @@ function loop(now) {
   tasks.tick(now);
   mcp.tick(now, dt, view, camera, focused, focusDim);
   syncOverviewBtn();
-  renderer.render(scene, camera);
+  renderer.toneMapping = floor < 0 ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping; // the street view is lit like a photo; the office keeps its flat pastels
+  if (floor < 0) { const T = tw(); T.resize(innerWidth, innerHeight, tasks ? tasks.panelWidth() + 30 : 430); T.tick(dt); renderer.render(T.scene, T.camera); } else renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

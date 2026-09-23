@@ -1,0 +1,18 @@
+# Codspot World — `npm run docker:up` (build + start), `npm run docker:restart` (after a change), `npm run docker:logs`.
+# Run it from this folder: the repo is mounted at the same path it has on the host.
+services:
+  office:
+    build: .
+    image: codspot-world
+    container_name: codspot-world
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: ${PWD}
+    ports:
+      - "${PORT:-4520}:4520"
+    environment:
+      PORT: "4520"
+    volumes:
+      - ${HOME}/Documents:${HOME}/Documents   # the repo and the project folders in office.config.local.json → workspace.dirs
+      - ${HOME}/.claude:/home/node/.claude     # your Claude Code login
+      - ${HOME}/.claude.json:/home/node/.claude.json # your MCP servers
