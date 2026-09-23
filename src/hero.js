@@ -1,4 +1,4 @@
-// Hero mode for sahni.ai/custom (16 Sep 2026). Opt-in: the page sets window.HERO before the bundle;
+// Hero mode for codspot.ai/custom (16 Sep 2026). Opt-in: the page sets window.HERO before the bundle;
 // without it every export here is inert and the office is unchanged.
 //
 //   window.HERO = { front: 'marketing', target: [-18, 0, 12], zoom: 1.25, keep: ['mlead','riley','gfx'] }

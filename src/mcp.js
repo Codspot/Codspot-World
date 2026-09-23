@@ -99,7 +99,7 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
 
   for (const [dept, keys] of Object.entries(BY_DEPT)) {
     const L = LAYOUT[dept];
-    const D = DOCKS[dept];
+    const D = DOCKS[dept] || DOCKS.delivery; // a department facilities built docks like delivery
     const glowT = glowTexture(DEPTS[dept].chip);
     const anchor = new THREE.Vector3(
       L.pos[0] + D.dir.x * D.dist, D.h, L.pos[1] + D.dir.z * D.dist);
@@ -206,7 +206,7 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
   const PORT_CORNER = { marketing: [-1, 1], emails: [-1, -1], sales: [1, -1], ops: [1, -1], fin: [1, -1], delivery: [-1, -1] };
   const wires = {}, wirePulses = [];
   Object.keys(BY_DEPT).forEach((dept, ji) => {
-    const L = LAYOUT[dept], [cx, cz] = PORT_CORNER[dept];
+    const L = LAYOUT[dept], [cx, cz] = PORT_CORNER[dept] || [-1, -1];
     const path = document.createElementNS(svgNS, 'path');
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', DEPTS[dept].chip);
@@ -256,7 +256,7 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
     svg.appendChild(jdot);
     const wiresOf = {};
     Object.keys(BY_DEPT).filter(d => BY_DEPT[d].includes(key)).forEach(dept => {
-      const L = LAYOUT[dept], [cx, cz] = PORT_CORNER[dept];
+      const L = LAYOUT[dept], [cx, cz] = PORT_CORNER[dept] || [-1, -1];
       const path = document.createElementNS(svgNS, 'path');
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', ink);
@@ -668,7 +668,7 @@ export function initMcp({ scene, hud, LAYOUT, DEPTS, FR, R, connectors = null })
     // current dock anchor per dept: overview anchor, lerped to the focus anchor (if any)
     // by focusDim while that dept is focused
     const anchorOf = (dept, out) => {
-      const D = DOCKS[dept], L = LAYOUT[dept];
+      const D = DOCKS[dept] || DOCKS.delivery, L = LAYOUT[dept];
       const k = (focused === dept && D.fdir) ? focusDim : 0;
       const fd = D.fdir || D.dir, fdist = D.fdist ?? D.dist, fh = D.fh ?? D.h;
       return out.set(

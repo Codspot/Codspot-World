@@ -1,6 +1,6 @@
-// Agents Office V3.5 — routines: tasks the office does on its own clock.
+// Codspot World V3.5 — routines: tasks the office does on its own clock.
 //
-// A routine is a line in <brain>/Agents Office/routines.json (yours: written by the task bar,
+// A routine is a line in <brain>/Codspot World/routines.json (yours: written by the task bar,
 // by a department lead in chat, or by Claude Code). Run state — when each one is next due, when
 // it last ran — lives in data/routines.json so the brain file stays clean config.
 //
@@ -20,7 +20,7 @@ import { describe, nextRun, valid } from './src/when.js';
 
 export const ALLOWED = ['emails', 'fin', 'sales'];
 export const NAMES = { emails: 'Emails', fin: 'Accounting', sales: 'Sales', marketing: 'Marketing', ops: 'Operations', delivery: 'Delivery' };
-export const file = brainPath => path.join(brainPath, 'Agents Office', 'routines.json');
+export const file = brainPath => path.join(brainPath, 'Codspot World', 'routines.json');
 export const stateFile = dataDir => path.join(dataDir, 'routines.json');
 export const LATE_AFTER = 90 * 1000; // a run more than 90 s past its minute was missed (asleep, or the office was off) → runs once, marked LATE
 

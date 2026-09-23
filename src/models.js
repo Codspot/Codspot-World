@@ -1,4 +1,4 @@
-// Agents Office V3.6 — the three models, by name. Shared by the page and the server.
+// Codspot World V3.6 — the three models, by name. Shared by the page and the server.
 // AJ (9 Sep 2026): "it is either Opus, Sonnet, or Fable. That's it." Sonnet is the default for
 // everything, including the routing call. Effort lives inside the name (Opus runs at high); nobody
 // sees an effort setting. Four places, one precedence: the task beats the routine beats the agent

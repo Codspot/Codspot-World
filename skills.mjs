@@ -1,9 +1,9 @@
-// Agents Office — skills (Beta). A skill is how the owner wants one kind of work done: a folder
+// Codspot World — skills. A skill is how the owner wants one kind of work done: a folder
 // with a SKILL.md (what, when, the steps, the format) and any templates or examples beside it.
 // The agent it is bound to reads the whole skill before every task and every chat turn.
 //
 //   skills/<name>/SKILL.md                      shipped with the repo (examples; yours can live here too)
-//   <brain>/Agents Office/skills/<name>/SKILL.md yours, kept with your notes — wins on the same name
+//   <brain>/Codspot World/skills/<name>/SKILL.md yours, kept with your notes — wins on the same name
 //   skills/<name>.md                             a one-file skill is also fine (either place)
 //
 // SKILL.md starts with a front-matter block:
@@ -22,7 +22,7 @@ import { ROOT } from './config.mjs';
 import { DEPT_KEYS } from './src/data.js';
 
 export const SHIPPED = path.join(ROOT, 'skills');
-export const brainDir = brainPath => path.join(brainPath, 'Agents Office', 'skills');
+export const brainDir = brainPath => path.join(brainPath, 'Codspot World', 'skills');
 const LIMITS = { body: 6000, files: 8000, perFile: 4000 };
 const TEXT = /\.(md|txt|csv|json|ya?ml|html?|xml|tsv)$/i;
 

@@ -8,7 +8,7 @@ agent how the work is done, and there are two ways to do it.
 | | A brief | A skill |
 |---|---|---|
 | What it is | A few standing sentences on one agent | A folder: how one kind of work is done, plus templates and examples |
-| Lives in | `office.agents.local.json`, or `<brain>/Agents Office/agents.json` | `<brain>/Agents Office/skills/<name>/` |
+| Lives in | `office.agents.local.json`, or `<brain>/Codspot World/agents.json` | `<brain>/Codspot World/skills/<name>/` |
 | Read when | Every task and chat turn for that agent | Every task and chat turn for the agents it is bound to |
 | Good for | Tone, red lines, who to escalate to, a preferred tool | A repeatable job with steps, a shape, rules and a template |
 | Size | Up to 2,000 characters | SKILL.md up to 6,000 characters, plus up to 8,000 in files beside it |
@@ -36,7 +36,7 @@ A skill is a folder with a `SKILL.md` and anything the agent needs beside it. It
 as a Claude Code skill, so if you have written one of those you already know this.
 
 ```
-<brain>/Agents Office/skills/
+<brain>/Codspot World/skills/
   proposal/
     SKILL.md          ← what, when, the steps, the rules
     template.md       ← the shape of the finished thing
@@ -77,7 +77,7 @@ A skill whose agents or departments are all misspelt is skipped, and `npm run ch
 Other files are listed by name only. Keep the folder to what the agent needs: a template, one or
 two examples, a checklist. Not the whole archive.
 
-**Where.** Your skills go in `<brain>/Agents Office/skills/` (the brain is the folder named in
+**Where.** Your skills go in `<brain>/Codspot World/skills/` (the brain is the folder named in
 `office.config.json`). They live with your notes, they are backed up with your notes, and
 `git pull` never touches them. The repo's own `skills/` folder holds three examples for the
 sample studio; a skill of the same name in your brain replaces the shipped one.
@@ -102,8 +102,8 @@ Answer in plain words. "skip" skips a question, "done" finishes early, "cancel" 
 answers away. Nothing is written until the last answer. Then the lead writes:
 
 - a **brief** for each agent on its team that the answers touched, into
-  `<brain>/Agents Office/agents.json`, merged with whatever is already there;
-- one **skill** for the job you described, into `<brain>/Agents Office/skills/<name>/`, with a
+  `<brain>/Codspot World/agents.json`, merged with whatever is already there;
+- one **skill** for the job you described, into `<brain>/Codspot World/skills/<name>/`, with a
   `template.md` if you gave it a shape;
 
 and replies with what it wrote, where, and one task to type to try it. Everything it writes is
@@ -114,7 +114,7 @@ yours yet says so in its greeting and offers the interview.
 ## They learn from your corrections
 
 When you send a deliverable back with `revise: …` in the chat, the agent revises it, and the
-correction is written to `<brain>/Agents Office/feedback/<agent-id>.md`. Claude sorts each one:
+correction is written to `<brain>/Codspot World/feedback/<agent-id>.md`. Claude sorts each one:
 
 - a **one-off**: about that task, that client, that draft ("add the booking integration");
 - a **standing rule**: something you will want every time ("too long, proposals are one page"
@@ -182,7 +182,7 @@ claude
 ```
 
 Claude reads `CLAUDE.md`, asks what it does not know, writes the folder into your brain's
-`Agents Office/skills/`, binds it to the right agent, and runs `npm run check`. Then give the
+`Codspot World/skills/`, binds it to the right agent, and runs `npm run check`. Then give the
 agent the task and read the result. Send it back with `revise: …` from the chat and, when the
 correction is one you will want every time, fold it into the skill.
 
@@ -192,7 +192,7 @@ correction is one you will want every time, fold it into the skill.
 - `npm start` prints the count at boot and which departments are set up;
   http://localhost:4520/api/skills shows the detail, `/api/lessons` the corrections.
 - Give the agent a task the skill covers. The deliverable ends with `Skill: <name>`.
-- Open the saved note in `<brain>/Agents Office/`. Its front matter has `skills:`.
+- Open the saved note in `<brain>/Codspot World/`. Its front matter has `skills:`.
 
 ## Limits and rules
 

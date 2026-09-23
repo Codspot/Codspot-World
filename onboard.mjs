@@ -1,8 +1,8 @@
-// Agents Office — the department lead interviews the owner (Beta).
+// Codspot World — the department lead interviews the owner.
 // In the chat with a department lead, say "set up". The lead asks five questions, one at a time,
 // about how that department works here, then writes it down for the team:
-//   · a brief for each agent in the department   → <brain>/Agents Office/agents.json
-//   · one skill for the job the owner described  → <brain>/Agents Office/skills/<name>/
+//   · a brief for each agent in the department   → <brain>/Codspot World/agents.json
+//   · one skill for the job the owner described  → <brain>/Codspot World/skills/<name>/
 // Nothing is written until the last answer. "skip" skips a question, "done" finishes early,
 // "cancel" throws the answers away. State lives in data/interviews.json while an interview runs.
 import fs from 'node:fs';
@@ -78,23 +78,23 @@ export async function writeUp(answers, ctx) {
   let j = null; try { const t = await ask(system, user, { maxTokens: 3000, timeout: 180000 }); const s = t.replace(/```json|```/g, ''); j = JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)); } catch (e) { j = { briefs: [], skill: null, try: '', error: e.message }; }
   const ids = new Set(agents.map(a => a.id)); const problems = [];
   if (j.error) problems.push('Claude did not return usable instructions (' + j.error.split('\n')[0] + ')');
-  // briefs → <brain>/Agents Office/agents.json (merged: other agents and other fields untouched)
+  // briefs → <brain>/Codspot World/agents.json (merged: other agents and other fields untouched)
   const briefs = (Array.isArray(j.briefs) ? j.briefs : []).filter(b => b && ids.has(b.id) && String(b.brief || '').trim()).map(b => ({ id: b.id, brief: String(b.brief).trim().slice(0, 2000) }));
   for (const b of (Array.isArray(j.briefs) ? j.briefs : [])) if (b && b.id && !ids.has(b.id)) problems.push(`"${b.id}" is not in ${d}`);
-  const agentsFile = path.join(brainPath, 'Agents Office', 'agents.json');
+  const agentsFile = path.join(brainPath, 'Codspot World', 'agents.json');
   if (briefs.length) {
     fs.mkdirSync(path.dirname(agentsFile), { recursive: true });
     let doc = { agents: [] }; try { const x = JSON.parse(fs.readFileSync(agentsFile, 'utf8')); if (Array.isArray(x?.agents)) doc = x; } catch {}
     for (const b of briefs) { const e = doc.agents.find(x => x && x.id === b.id); if (e) e.brief = b.brief; else doc.agents.push({ id: b.id, brief: b.brief }); }
     fs.writeFileSync(agentsFile, JSON.stringify(doc, null, 2) + '\n');
   }
-  // the skill → <brain>/Agents Office/skills/<name>/SKILL.md (+ template.md)
+  // the skill → <brain>/Codspot World/skills/<name>/SKILL.md (+ template.md)
   let skill = null;
   if (j.skill && typeof j.skill === 'object' && String(j.skill.body || '').trim()) {
     const name = String(j.skill.name || `${dept}-job`).toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-|-$/g, '') || `${dept}-job`;
     let bound = (Array.isArray(j.skill.agents) ? j.skill.agents : []).filter(id => ids.has(id));
     if (!bound.length) bound = [lead.id];
-    const dir = path.join(brainPath, 'Agents Office', 'skills', name);
+    const dir = path.join(brainPath, 'Codspot World', 'skills', name);
     if (fs.existsSync(path.join(dir, 'SKILL.md'))) { const bak = path.join(dir, `SKILL.md.backup-${Date.now()}`); fs.copyFileSync(path.join(dir, 'SKILL.md'), bak); problems.push(`a skill called ${name} already existed — the old SKILL.md is kept beside it as ${path.basename(bak)}`); }
     fs.mkdirSync(dir, { recursive: true });
     const description = String(j.skill.description || '').replace(/\n/g, ' ').trim().slice(0, 160);

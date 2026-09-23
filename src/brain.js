@@ -1,4 +1,4 @@
-// Agents Office V3.6 — the Brain as an etched floor (AJ, 6 Sep 2026: option B + the panel strip).
+// Codspot World V3.6 — the Brain as an etched floor (AJ, 6 Sep 2026: option B + the panel strip).
 // The particle nebula is gone. The vault's wiki-link graph (src/braingraph.js, baked by
 // graph-build.mjs) is drawn into the floor of the centre pod as faint ink line-work: texture at
 // overview, a graph when you lean in. It moves only when an agent READS (a note glints green and a
@@ -163,7 +163,7 @@ export function initBrain({ scene, brainGroup, getR, esc, hud, toScreen, getCame
   function setGraph(g) {
     if (!g || !g.nodes || !g.nodes.length) return;
     const today = new Date().toISOString().slice(0, 10);
-    nodes = g.nodes.map((n, i) => ({ ...n, i, fresh: n.g === 'Agents Office' && n.id.startsWith(today) })); // notes the office wrote today glow green
+    nodes = g.nodes.map((n, i) => ({ ...n, i, fresh: n.g === 'Codspot World' && n.id.startsWith(today) })); // notes the office wrote today glow green
     links = g.links.map(([a, b]) => [a, b]);
     adj = nodes.map(() => new Set()); for (const [a, b] of links) { adj[a].add(b); adj[b].add(a); }
     byId = new Map(nodes.map(n => [n.id, n.i])); hubs = nodes.slice(0, 8);

@@ -1,8 +1,8 @@
-// Agents Office — the build loop (Beta).
+// Codspot World — the build loop.
 //   node check.mjs             build + offline smoke + server smoke (no Claude calls)
 //   CHECK_LIVE=1 node check.mjs  … plus one real routed task and one chat turn through Claude
 // Every step prints ✓ or ✗ with the reason; the process exits 1 if anything failed. This is the
-// loop the Beta was built against: change something, run it, fix what is red, repeat.
+// loop the office was built against: change something, run it, fix what is red, repeat.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,7 +26,7 @@ await step('build: braingraph + bundle', async () => {
   const out = await sh('node', ['build.mjs']);
   const html = fs.readFileSync(path.join(ROOT, 'dist', 'command-centre-v2.html'), 'utf8');
   if (html.length < 500000) throw new Error('bundle looks too small: ' + html.length);
-  if (!/AGENTS OFFICE/.test(html)) throw new Error('shell missing');
+  if (!/Codspot World/.test(html)) throw new Error('shell missing');
   return out.trim().split('\n').pop();
 });
 await step('build: graph has linked notes', async () => {
@@ -40,9 +40,37 @@ await step('build: graph has linked notes', async () => {
 await step('roster: office.agents.json validates', async () => {
   const { loadRoster } = await import('./roster.mjs');
   const r = loadRoster();
-  if (r.agents.length !== 35) throw new Error('agents: ' + r.agents.length);
+  const built = (await import('./facilities.mjs')).departments().reduce((t, d) => t + d.seats.length, 0);
+  if (r.agents.length !== 35 + built) throw new Error('agents: ' + r.agents.length);
   if (r.problems.length) throw new Error(r.problems.join(' | '));
-  return `35 agents · ${r.customised} customised${r.files.length ? ' · ' + r.files.join(' + ') : ''}`;
+  return `${r.agents.length} agents${built ? ' (35 + ' + built + ' built by facilities)' : ''} · ${r.customised} customised${r.files.length ? ' · ' + r.files.join(' + ') : ''}`;
+});
+await step('facilities: builds a department, grows it, refuses a shipped one, puts it on a floor', async () => {
+  const f = await import('./facilities.mjs'); const os = await import('node:os');
+  const brain = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-fac-'));
+  const had = f.departments();
+  const a = f.build(brain, { name: 'Check Team', floor: 'Check Floor', seats: [{ name: 'BOSS', lead: true }, { name: 'DEV' }, { name: 'DEV' }] });
+  if (a.error || a.dept.seats.length !== 3 || a.dept.seats.filter(s => s.lead).length !== 1 || new Set(a.dept.seats.map(s => s.id)).size !== 3) throw new Error('build: ' + JSON.stringify(a));
+  const g = f.build(brain, { name: 'Check Team', seats: [{ name: 'QA' }, { name: 'DEV' }] }); if (g.added !== 1) throw new Error('grow: ' + JSON.stringify(g));
+  if (!f.build(brain, { name: 'sales', seats: [{ name: 'A' }, { name: 'B' }] }).error) throw new Error('a shipped department grew');
+  const t = f.towerWith({ floors: [{ name: 'Business', depts: ['sales'] }] }); if (!t.floors.some(x => x.name === 'Check Floor' && x.depts.includes('checkteam'))) throw new Error('tower: ' + JSON.stringify(t));
+  f.load(cfg.brainPath); if (f.departments().length !== had.length) throw new Error('reload');
+  return '3 seats, one lead, unique ids · +1 seat (duplicate name skipped) · shipped refused · new storey';
+});
+await step('facilities: fits a room on a floor, refuses an unknown floor, kind or a full floor, takes one out', async () => {
+  const f = await import('./facilities.mjs'); const os = await import('node:os');
+  const brain = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-room-')), floors = ['Business', 'Development'];
+  const a = f.buildRoom(brain, { floor: 'development', kind: 'meeting', name: 'Boardroom', seats: 10 }, floors);
+  if (a.error || a.room.floor !== 'Development' || a.room.seats !== 10) throw new Error('build: ' + JSON.stringify(a));
+  if (!f.buildRoom(brain, { floor: 'Roof', kind: 'lounge' }, floors).error) throw new Error('an unknown floor was built on');
+  if (!f.buildRoom(brain, { floor: 'Business', kind: 'gym' }, floors).error) throw new Error('an unknown kind was built');
+  if (!f.buildRoom(brain, { floor: 'Development', kind: 'meeting', name: 'BOARDROOM' }, floors).error) throw new Error('a duplicate room was built');
+  for (const k of ['lounge', 'pantry', 'focus']) f.buildRoom(brain, { floor: 'Development', kind: k }, floors);
+  if (!f.buildRoom(brain, { floor: 'Development', kind: 'lounge', name: 'LOUNGE 2' }, floors).error) throw new Error('a full floor took a fifth room');
+  if (!f.towerWith({ floors: floors.map(name => ({ name, depts: [] })) }).floors[1].rooms?.length) throw new Error('tower has no rooms');
+  if (f.buildRoom(brain, { floor: 'Development', name: 'Boardroom', remove: true }, floors).error || f.rooms().length !== 3) throw new Error('remove');
+  f.load(cfg.brainPath);
+  return 'meeting room with 10 seats · unknown floor, kind, duplicate and a fifth room refused · removed';
 });
 await step('roster: bad edits are refused, not applied', async () => {
   const { validate } = await import('./roster.mjs');
@@ -71,7 +99,7 @@ await step('skills: shipped skills load and bind', async () => {
 });
 await step('skills: a broken skill is refused, not applied', async () => {
   const { loadSkills } = await import('./skills.mjs'); const { loadRoster } = await import('./roster.mjs');
-  const os = await import('node:os'); const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-skills-')); const dir = path.join(tmp, 'Agents Office', 'skills');
+  const os = await import('node:os'); const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ao-skills-')); const dir = path.join(tmp, 'Codspot World', 'skills');
   fs.mkdirSync(path.join(dir, 'ghost'), { recursive: true }); fs.mkdirSync(path.join(dir, 'nofile')); fs.mkdirSync(path.join(dir, 'proposal'));
   fs.writeFileSync(path.join(dir, 'ghost', 'SKILL.md'), '---\nagents: [nobody]\ncolour: red\n---\n# Ghost\nDo things.');
   fs.writeFileSync(path.join(dir, 'proposal', 'SKILL.md'), '---\ndescription: Our own proposal skill\nagents: [piper]\n---\n# Ours\nThe brain version.');
@@ -313,7 +341,7 @@ else {
     const errors = []; page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text().slice(0, 120)); });
     await page.goto('file://' + path.join(ROOT, 'dist', 'command-centre-v2.html') + '?s=check'); await page.waitForTimeout(3000);
     await step('smoke: loads without page errors', async () => { if (errors.length) throw new Error(errors[0]); });
-    await step('smoke: 35 agents at their desks', async () => { const n = await page.evaluate(() => Object.keys(window.CC.R).length); if (n !== 35) throw new Error('agents: ' + n); return n + ' agents'; });
+    await step('smoke: 35 agents at their desks', async () => { const n = await page.evaluate(() => Object.keys(window.CC.R).length); if (n < 35) throw new Error('agents: ' + n); return n + ' agents'; });
     await step('smoke: six department cards + the Brain tag', async () => {
       const t = await page.evaluate(() => [...document.querySelectorAll('.badge .b-name')].map(e => e.textContent.trim()));
       for (const k of ['EMAILS', 'SALES', 'MARKETING', 'OPERATIONS', 'FINANCE', 'DELIVERY', 'THE BRAIN']) if (!t.some(x => x.startsWith(k))) throw new Error('missing card ' + k);
@@ -458,7 +486,7 @@ else {
   if (!up) bad('server: starts', log.trim().split('\n').slice(-2).join(' | ') || 'no health response');
   else {
     ok('server: starts', `${up.name} · ${up.backend} · brain ${up.notes} notes`);
-    await step('server: serves the office', async () => { const r = await fetch(base + '/'); const t = await r.text(); if (!/AGENTS OFFICE/.test(t)) throw new Error('html missing'); });
+    await step('server: serves the office', async () => { const r = await fetch(base + '/'); const t = await r.text(); if (!/Codspot World/.test(t)) throw new Error('html missing'); });
     await step('server: /api/brain has the live graph', async () => { const g = await (await fetch(base + '/api/brain')).json(); if (!g.nodes.length) throw new Error('empty'); return `${g.nodes.length} linked notes`; });
     await step('server: /api/mcp lists this machine\'s connectors', async () => {
       const m = await (await fetch(base + '/api/mcp')).json();
@@ -522,7 +550,7 @@ else {
       await step('live: the agent delivers and the note is saved', async () => {
         const t = globalThis.__t; if (!t) throw new Error('no task'); const r = await fetch(`${base}/api/tasks/${t.id}/run`, { method: 'POST' });
         if (!r.ok) throw new Error((await r.json()).error); const d = await r.json(); if (d.error) throw new Error(d.result);
-        const notePath = path.join(cfg.brainPath, 'Agents Office', d.note + '.md'); if (!fs.existsSync(notePath)) throw new Error('note not written: ' + notePath);
+        const notePath = path.join(cfg.brainPath, 'Codspot World', d.note + '.md'); if (!fs.existsSync(notePath)) throw new Error('note not written: ' + notePath);
         return `${d.result.length} chars · read ${d.read.join(', ')} · ${d.note}.md`;
       });
       await step('live: a two-minute routine fires on the server, runs and lands', async () => {
@@ -570,7 +598,7 @@ else {
         if (new Set(ps.map(p => p.agent)).size !== ps.length) throw new Error('a desk got two pieces');
         if (!ps.every(p => p.state === 'done' && p.result)) throw new Error('a piece did not finish: ' + JSON.stringify(ps.map(p => [p.agent, p.state])));
         if (!/Team:/i.test(d.result)) throw new Error('the final has no Team line');
-        const note = fs.readFileSync(path.join(cfg.brainPath, 'Agents Office', d.note + '.md'), 'utf8'); if (!/^team: /m.test(note) || !/## Team/.test(note)) throw new Error('the note does not carry the team');
+        const note = fs.readFileSync(path.join(cfg.brainPath, 'Codspot World', d.note + '.md'), 'utf8'); if (!/^team: /m.test(note) || !/## Team/.test(note)) throw new Error('the note does not carry the team');
         return `${ps.map(p => p.agent).join(' + ')} → ${d.agent} · ${d.result.length} chars · ${(d.team.messages || []).length} notes between them · ${d.note}.md`;
       });
       await step('live: an agent drives the owner\'s Chrome', async () => {

@@ -1,4 +1,4 @@
-// Agents Office V3 — the work layer.
+// Codspot World V3 — the work layer.
 // V3.3 (AJ, 6 Sep 2026): a PERMANENT Task Status panel on the right — a one-line command bar
 // (department dropdown + input, the office names the agent as you type) over a live feed of
 // every task, newest change first, with status chips as filters. The flying tickets are gone:
@@ -9,7 +9,7 @@
 // Session-only theatre — nothing persists (AJ's call: gauge interest first).
 // V3.5 (AJ, 9 Sep 2026): ROUTINES — tasks on the office's own clock, Emails / Accounting / Sales
 // only this release. Set one in the bar ("every weekday at 8am, …" or the REPEAT picker), by
-// telling an agent in chat, or in <brain>/Agents Office/routines.json. Live: the server keeps the
+// telling an agent in chat, or in <brain>/Codspot World/routines.json. Live: the server keeps the
 // clock, fires and runs them page or no page; this page polls and shows the card move
 // SCHEDULED → BACKLOG → IN PROGRESS → (WAITING ON APPROVAL) → DONE. A draft that needs the owner's
 // OK makes the agent stand and wave; APPROVE sends it, REJECT + a note reworks it. Demo (file://):
@@ -30,6 +30,7 @@ import { MODEL_KEYS, MODELS, DEFAULT_MODEL, modelName, normModel, FROM_TEXT , EF
 const SEGMENTS = ['roofing', 'HVAC', 'dental', 'logistics', 'fitness', 'property', 'landscaping', 'legal'];
 
 // generic-business task pool per agent (AJ: generic business, not TerriTool-flavoured)
+const IDLE = ['Pick up the next ticket', 'Review a change', 'Write the status update']; // a seat facilities built has no demo pool
 const POOL = {
   elead: ['Review the overnight inbox, route 40 emails', 'Tone pass on 6 client replies', 'Weekly inbox summary for AJ', 'Update the reply templates', 'Escalate 2 threads to AJ'],
   cmail: ['Reply to the {co} scope question', 'Send the kickoff summary to {co}', 'Answer 9 client emails from overnight', 'Draft the price-increase notice', 'Chase {co} for the brief sign-off'],
@@ -165,8 +166,8 @@ export function initTasks(ctx) {
   function visibleTitles(id) { return new Set(tasks.filter(t => t.agent === id && t.state !== 'done').map(t => t.title)); }
   function pick(id) {
     const seen = visibleTitles(id);
-    for (let i = 0; i < 4; i++) { const t = fill(rnd(POOL[id]), vars()); if (!seen.has(t)) return t; }
-    return fill(rnd(POOL[id]), vars());
+    for (let i = 0; i < 4; i++) { const t = fill(rnd(POOL[id] || IDLE), vars()); if (!seen.has(t)) return t; }
+    return fill(rnd(POOL[id] || IDLE), vars());
   }
   // a fresh piece of work for an agent: sometimes the first step of a handoff chain
   function freshTask(id, extra = {}) {
@@ -567,7 +568,7 @@ export function initTasks(ctx) {
     if (!agentOf(st.agent)) return;
     let t = tasks.find(x => x.live && x.sid === st.id);
     if (!t) {
-      t = mk({ agent: st.agent, title: st.title, text: st.text, plan: st.plan, by: st.by === 'routine' ? 'routine' : 'you', live: true, srv: !!st.routine, sid: st.id,
+      t = mk({ agent: st.agent, title: st.title, text: st.text, plan: st.plan, by: st.by === 'routine' ? 'routine' : 'you', live: true, srv: !!(st.routine || st.fromCeo), sid: st.id, // the server runs routines and the CEO's work itself
         routine: st.routine, when: st.when, late: !!st.late, due: st.due, needsOk: !!st.needsOk, addedAt: st.addedAt, changedAt: st.addedAt, last: 'added',
         model: st.model, modelUsed: st.modelUsed || st.model || undefined, modelFrom: st.modelFrom || (st.model ? 'task' : undefined), effort: st.effort, effortUsed: st.effortUsed, effortFrom: st.effortFrom });
       if (st.state === 'scheduled') { t.state = 'scheduled'; t.dueAt = st.dueAt; t.needsOk = !!st.needsOk; }
@@ -675,6 +676,9 @@ export function initTasks(ctx) {
       const mode = panel.querySelector('.tp-mode');
       if (mode) { mode.hidden = false; mode.textContent = 'LIVE · ' + (h.backend === 'anthropic-sdk' ? 'CLAUDE API' : 'CLAUDE'); mode.classList.add('live'); mode.title = `${h.name} · ${h.backend} · ${modelName(h.model)} by default · brain: ${h.brain}`; }
       if (brain) { try { brain.setGraph(await (await fetch(API + '/brain')).json()); } catch {} }
+      // live: only real work on the board — the demo morning goes, and idle desks stay idle (owner, 23 Sep 2026)
+      for (let i = tasks.length; i--;) if (!tasks[i].live) tasks.splice(i, 1);
+      for (const k of DEPT_KEYS) doneCount[k] = 0;
       const list = await (await fetch(API + '/tasks')).json();
       for (const st of list) {
         if (!agentOf(st.agent)) continue;
@@ -685,6 +689,7 @@ export function initTasks(ctx) {
           deliver(t);
         } else reconcile(st); // next, doing (the server may be running it), waiting for your OK, scheduled for a date — pick it up again
       }
+      for (const t of tasks) if (t.state === 'done') doneCount[t.dept]++;
       dirty = true;
       if (onLive) onLive(h);
       await poll(); setInterval(poll, 6000); // V3.5: routines fire on the server's clock — the page keeps up
@@ -844,7 +849,7 @@ export function initTasks(ctx) {
     const tot = st => DEPT_KEYS.reduce((s, k) => s + deptTasks(k, st).length, 0);
     const doneAll = DEPT_KEYS.reduce((s, k) => s + doneCount[k], 0);
     return `<div class="bd-head">
-        <span class="b-name"><span class="bd-title">Agents Office</span>Today's board</span>
+        <span class="b-name"><span class="bd-title">Codspot World</span>Today's board</span>
         <span class="bd-stats"><span>SCHEDULED<b>${routines.length + tot('scheduled')}</b></span><span>IN PROGRESS<b>${tot('doing')}</b></span><span>BACKLOG<b>${tot('next')}</b></span><span>WAITING<b>${tot('waiting')}</b></span><span>DONE<b>${doneAll}</b></span></span></div>
       <div class="bd-lanes"><div class="lh"></div>${COLS.map(([, lab]) => `<div class="lh">${lab}</div>`).join('')}
       ${DEPT_KEYS.map(k => {
@@ -959,6 +964,7 @@ export function initTasks(ctx) {
       } else {
         const nx = agentTasks(id, 'next').sort((a, b) => a.addedAt - b.addedAt)[0];
         if (nx) { start(nx, now); r.nextBrainAt = null; }
+        else if (live) continue; // no made-up work once the office is live
         else if (!r.nextBrainAt) r.nextBrainAt = now + 6000 + Math.random() * 16000;
         else if (now > r.nextBrainAt) { r.nextBrainAt = null; brainSend(id); }
       }
@@ -1011,7 +1017,7 @@ export function initTasks(ctx) {
     tasks.splice(tasks.indexOf(t), 1); dirty = true; feedPush(R[t.agent], '✕', `Cancelled: ${t.title}`);
     return true;
   }
-  const calendar = initCalendar({ tasks, routines, agentOf, DEPTS, DEPT_KEYS, RT_DEPTS, rtRefuse, create: createScheduled, createRoutine: createRoutineAt, cancelTask: cancelScheduled, rtAct, openAgent: (id, tab) => openAgent && openAgent(id, tab), esc, isLive: () => live, officeModel: () => officeModel, MODEL_KEYS, modelName, business: () => document.title.replace(/ — Agents Office$/, ''), currentDept: () => dept });
+  const calendar = initCalendar({ tasks, routines, agentOf, DEPTS, DEPT_KEYS, RT_DEPTS, rtRefuse, create: createScheduled, createRoutine: createRoutineAt, cancelTask: cancelScheduled, rtAct, openAgent: (id, tab) => openAgent && openAgent(id, tab), esc, isLive: () => live, officeModel: () => officeModel, MODEL_KEYS, modelName, business: () => document.title.replace(/ — Codspot World$/, ''), currentDept: () => dept });
   return { tick, toggle, open, close, openFor, isOpen, boardWidth, onFocusChange, onStuck, onResolve, calendar, createScheduled, cancelScheduled,
            handleChat, addTask, revise, rowHTML, setDept, tasks, panelWidth: () => panel.offsetWidth, isLive: () => live,
            routines, addRoutine, rtAct, railFor, syncPills, refresh: poll, resolveLive, pendingReject, rejectLive, officeModel: () => officeModel, chosenModel, chosenEffort };

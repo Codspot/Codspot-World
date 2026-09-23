@@ -1,6 +1,6 @@
-// Agents Office — the roster (Beta). Who sits where is fixed (six pods, 35 seats); what each
+// Codspot World — the roster. Who sits where is fixed (six pods, 35 seats, plus what facilities.mjs built); what each
 // agent is called, does and uses is yours to change in office.agents.json.
-//   built-in defaults  ← office.agents.json  ← <brain>/Agents Office/agents.json  ← office.agents.local.json (gitignored)
+//   built-in defaults  ← office.agents.json  ← <brain>/Codspot World/agents.json  ← office.agents.local.json (gitignored)
 // Departments, leads and seats cannot be changed from these files; the office ignores such
 // edits and says so. `brief` is the owner's standing instructions to that agent (multi-line),
 // read before every task. Skills — how a kind of work is done — live beside the agents in
@@ -10,17 +10,18 @@ import path from 'node:path';
 import { ROOT, loadConfig } from './config.mjs';
 import { AGENTS, DEPTS } from './src/data.js';
 import { V1 } from './src/v1data.js';
+import './facilities.mjs'; // departments the facilities team built join AGENTS before any roster is read
 
 export const FILE = path.join(ROOT, 'office.agents.json');
 export const LOCAL = path.join(ROOT, 'office.agents.local.json');
-export const brainFile = brainPath => path.join(brainPath, 'Agents Office', 'agents.json');
+export const brainFile = brainPath => path.join(brainPath, 'Codspot World', 'agents.json');
 const EDITABLE = ['name', 'role', 'does', 'tools', 'brief', 'model', 'effort'];
 const BRIEF_MAX = 2000;
 const MODELS = ['sonnet', 'opus', 'fable']; // V3.6: an agent's model, by name; empty = the office default
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']; // V3.6.1: an agent's effort; empty = the office's, then the model's own
 
 export function defaults() {
-  return AGENTS.map(a => { const p = V1.find(x => x.id === a.id) || {}; return { id: a.id, department: a.dept, lead: !!a.lead, name: a.name, role: p.role || '', does: p.tagline || '', tools: [], brief: '', model: '', effort: '' }; });
+  return AGENTS.map(a => { const p = V1.find(x => x.id === a.id) || {}; return { id: a.id, department: a.dept, lead: !!a.lead, name: a.name, role: p.role || a.role || '', does: p.tagline || a.does || '', tools: [], brief: '', model: '', effort: '' }; });
 }
 // returns { agents, problems } — problems are human sentences, never thrown
 export function validate(doc, base = defaults()) {
@@ -32,7 +33,7 @@ export function validate(doc, base = defaults()) {
   for (const e of list) {
     if (!e || typeof e !== 'object' || !e.id) { problems.push('an entry has no "id" — skipped'); continue; }
     const a = out.find(x => x.id === e.id);
-    if (!a) { problems.push(`"${e.id}" is not one of the 35 seats — skipped (new agents are not supported; rename a seat instead)`); continue; }
+    if (!a) { problems.push(`"${e.id}" is not one of the ${base.length} seats — skipped (rename a seat, or ask the CEO to have facilities build one)`); continue; }
     if (seen.has(e.id)) problems.push(`"${e.id}" appears twice — the later entry wins`);
     seen.add(e.id);
     if (e.department !== undefined && e.department !== a.department) problems.push(`"${e.id}": department cannot change (${a.department} → ${e.department}) — ignored`);
@@ -62,7 +63,7 @@ function read(p) { if (!fs.existsSync(p)) return null; try { return JSON.parse(f
 export function loadRoster(brainPath = loadConfig().brainPath) {
   let agents = defaults(); const problems = [];
   const sources = [FILE, brainFile(brainPath), LOCAL];
-  const label = p => p === FILE || p === LOCAL ? path.basename(p) : 'brain/Agents Office/agents.json';
+  const label = p => p === FILE || p === LOCAL ? path.basename(p) : 'brain/Codspot World/agents.json';
   for (const p of sources) {
     const doc = read(p); if (!doc) continue;
     const rel = label(p);

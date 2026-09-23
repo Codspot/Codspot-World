@@ -1,4 +1,4 @@
-// Agents Office — connectors (Beta). The office shows the MCP servers YOUR Claude Code is
+// Codspot World — connectors. The office shows the MCP servers YOUR Claude Code is
 // actually connected to, and hands those same servers to the agents as tools.
 //
 //   discover()          → `claude mcp list`, parsed: every server, its status, the tool id
@@ -23,7 +23,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export const DEPT_KEYS = ['emails', 'sales', 'marketing', 'ops', 'fin', 'delivery'];
+import { DEPT_KEYS } from './src/data.js'; // the live list: departments facilities built are in it
+export { DEPT_KEYS };
 
 // known brands → logo key in src/mcplogos.js. Anything else gets a generated tile.
 const ALIASES = {
