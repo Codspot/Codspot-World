@@ -6,14 +6,14 @@
 //
 // The working copy is the private source of truth (NOTES.md, shots, the vault-backed local config).
 // The release is a fresh assembly: whitelisted files only, the Brain graph rebuilt from the SAMPLE
-// brain (never from a private vault), the release .gitignore, and the ajcodspot author identity.
+// brain (never from a private vault), the release .gitignore, and this working copy's git author.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT } from '../config.mjs';
 
-const PUBLIC = 'git@github.com:ajcodspot/agents-office.git';
-const AUTHOR = ['AJ codspot', '32712407+ajcodspot@users.noreply.github.com'];
+const REPO = 'Codspot/Codspot-World'; // the owner's fork; nothing goes to the original repo
+const PUBLIC = `https://github.com/${REPO}.git`;
 const BRANCH = 'main'; // the repo page IS the product page
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const TAG = 'v' + pkg.version;
@@ -49,7 +49,7 @@ console.log('→ cloning the public repo');
 const TMP = fs.mkdtempSync('/tmp/agents-office-release-');
 run('git', ['clone', '-q', PUBLIC, path.join(TMP, 'pub')]);
 const pub = path.join(TMP, 'pub');
-run('git', ['config', 'user.name', AUTHOR[0]], { cwd: pub }); run('git', ['config', 'user.email', AUTHOR[1]], { cwd: pub });
+for (const k of ['user.name', 'user.email']) run('git', ['config', k, run('git', ['config', k], { cwd: ROOT }).trim()], { cwd: pub });
 const hasBranch = spawnSync('git', ['ls-remote', '--heads', 'origin', BRANCH], { cwd: pub, encoding: 'utf8' }).stdout.trim() !== '';
 run('git', hasBranch ? ['checkout', '-q', BRANCH] : ['checkout', '-q', '-b', BRANCH], { cwd: pub });
 for (const ent of fs.readdirSync(pub)) if (ent !== '.git') fs.rmSync(path.join(pub, ent), { recursive: true, force: true });
@@ -68,8 +68,8 @@ console.log('→ zip + GitHub pre-release');
 const zip = path.join(TMP, `agents-office-${TAG}.zip`);
 run('zip', ['-qr', zip, '.', '-x', '.git/*'], { cwd: pub });
 const notes = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8').split('\n## ')[1] || TAG;
-const rel = spawnSync('gh', ['release', 'view', TAG, '-R', 'ajcodspot/agents-office'], { encoding: 'utf8' });
+const rel = spawnSync('gh', ['release', 'view', TAG, '-R', REPO], { encoding: 'utf8' });
 if (rel.status === 0) console.log(`  release ${TAG} already exists and is immutable — bump package.json to ship a new zip`);
-else run('gh', ['release', 'create', TAG, zip, '--prerelease', '--title', `Codspot World ${TAG}`, '--notes', '## ' + notes, '--target', BRANCH, '-R', 'ajcodspot/agents-office']);
-if (rel.status === 0) spawnSync('gh', ['release', 'edit', TAG, '--target', BRANCH, '-R', 'ajcodspot/agents-office']);
-console.log(`✓ Published ${BRANCH} @ ${TAG} → https://github.com/ajcodspot/agents-office/tree/${BRANCH}  ·  https://github.com/ajcodspot/agents-office/releases/tag/${TAG}`);
+else run('gh', ['release', 'create', TAG, zip, '--prerelease', '--title', `Codspot World ${TAG}`, '--notes', '## ' + notes, '--target', BRANCH, '-R', REPO]);
+if (rel.status === 0) spawnSync('gh', ['release', 'edit', TAG, '--target', BRANCH, '-R', REPO]);
+console.log(`✓ Published ${BRANCH} @ ${TAG} → https://github.com/${REPO}/tree/${BRANCH}  ·  https://github.com/${REPO}/releases/tag/${TAG}`);

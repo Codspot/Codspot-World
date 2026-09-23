@@ -41,8 +41,8 @@ The full list, release by release: [CHANGELOG](CHANGELOG.md).
 ## Install
 
 ```bash
-git clone https://github.com/ajcodspot/agents-office.git
-cd agents-office
+git clone https://github.com/Codspot/Codspot-World.git
+cd Codspot-World
 ./setup          # checks Node, git and Claude; installs; builds; boots once
 npm start        # → http://localhost:4520
 ```
